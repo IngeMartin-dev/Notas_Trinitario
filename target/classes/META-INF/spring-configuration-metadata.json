@@ -1,0 +1,99 @@
+{
+  "groups": [
+    {
+      "name": "app",
+      "type": "com.notastrinitario.app.config.AppProperties",
+      "sourceType": "com.notastrinitario.app.config.AppProperties"
+    },
+    {
+      "name": "app.ai",
+      "type": "com.notastrinitario.app.config.AppProperties$Ai",
+      "sourceType": "com.notastrinitario.app.config.AppProperties",
+      "sourceMethod": "public com.notastrinitario.app.config.AppProperties.Ai getAi() "
+    },
+    {
+      "name": "app.firebase",
+      "type": "com.notastrinitario.app.config.AppProperties$Firebase",
+      "sourceType": "com.notastrinitario.app.config.AppProperties",
+      "sourceMethod": "public com.notastrinitario.app.config.AppProperties.Firebase getFirebase() "
+    },
+    {
+      "name": "app.institution",
+      "type": "com.notastrinitario.app.config.AppProperties$Institution",
+      "sourceType": "com.notastrinitario.app.config.AppProperties",
+      "sourceMethod": "public com.notastrinitario.app.config.AppProperties.Institution getInstitution() "
+    },
+    {
+      "name": "app.jwt",
+      "type": "com.notastrinitario.app.config.AppProperties$Jwt",
+      "sourceType": "com.notastrinitario.app.config.AppProperties",
+      "sourceMethod": "public com.notastrinitario.app.config.AppProperties.Jwt getJwt() "
+    }
+  ],
+  "properties": [
+    {
+      "name": "app.ai.mistral-api-key",
+      "type": "java.lang.String",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Ai"
+    },
+    {
+      "name": "app.ai.mistral-model",
+      "type": "java.lang.String",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Ai"
+    },
+    {
+      "name": "app.ai.mistral-url",
+      "type": "java.lang.String",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Ai"
+    },
+    {
+      "name": "app.firebase.enabled",
+      "type": "java.lang.Boolean",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Firebase"
+    },
+    {
+      "name": "app.firebase.service-account-file",
+      "type": "java.lang.String",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Firebase"
+    },
+    {
+      "name": "app.institution.address",
+      "type": "java.lang.String",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Institution"
+    },
+    {
+      "name": "app.institution.logo",
+      "type": "java.lang.String",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Institution"
+    },
+    {
+      "name": "app.institution.name",
+      "type": "java.lang.String",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Institution"
+    },
+    {
+      "name": "app.institution.phone",
+      "type": "java.lang.String",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Institution"
+    },
+    {
+      "name": "app.jwt.expiration",
+      "type": "java.lang.Long",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Jwt"
+    },
+    {
+      "name": "app.jwt.refresh-expiration",
+      "type": "java.lang.Long",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Jwt"
+    },
+    {
+      "name": "app.jwt.secret",
+      "type": "java.lang.String",
+      "sourceType": "com.notastrinitario.app.config.AppProperties$Jwt"
+    }
+  ],
+  "hints": [],
+  "ignored": {
+    "properties": []
+  }
+}

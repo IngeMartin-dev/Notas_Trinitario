@@ -1,0 +1,7 @@
+{
+  "version": 3,
+  "sources": ["src/app/services/grades-update.service.ts"],
+  "sourcesContent": ["import { Injectable, signal } from '@angular/core';\r\n\r\n@Injectable({\r\n  providedIn: 'root'\r\n})\r\nexport class GradesUpdateService {\r\n  // Signal to track when grades are updated\r\n  gradesUpdated = signal<number>(0);\r\n\r\n  // Method to notify that grades have been updated\r\n  notifyGradeUpdate() {\r\n    this.gradesUpdated.update(v => v + 1);\r\n  }\r\n}\r\n"],
+  "mappings": ";;;;;;;;AAKM,IAAO,sBAAP,MAAO,qBAAmB;;EAE9B,gBAAgB,OAAe,GAAC,GAAA,YAAA,CAAA,EAAA,WAAA,gBAAA,CAAA,IAAA,CAAA,CAAA;;EAGhC,oBAAiB;AACf,SAAK,cAAc,OAAO,OAAK,IAAI,CAAC;EACtC;;qCAPW,sBAAmB;EAAA;4EAAnB,sBAAmB,SAAnB,qBAAmB,WAAA,YAFlB,OAAM,CAAA;;;sEAEP,qBAAmB,CAAA;UAH/B;WAAW;MACV,YAAY;KACb;;;",
+  "names": []
+}

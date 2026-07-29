@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="22030be7-882c-4005-8800-0c0c2e8cb7f3" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/Frontend/.editorconfig" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/.gitignore" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/.vscode/extensions.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/.vscode/launch.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/.vscode/tasks.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/angular.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/package-lock.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/package.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/public/favicon.ico" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/src/app/app.config.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/src/app/app.css" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/src/app/app.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/src/app/app.routes.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/src/app/app.spec.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/src/app/app.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/src/index.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/src/main.ts" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/src/styles.css" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/tsconfig.app.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/tsconfig.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/Frontend/tsconfig.spec.json" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/AuthController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/BoletinController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/DigitalSignatureController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/HomeController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/HomeroomAssignmentController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/MessageController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/NotificationController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/ParentController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/PeriodController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/RecoveryController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/ReportCardController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/StudentController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/SubjectController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/SubjectGradeController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/TeacherController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/TwoFactorAuthController.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller/UserController.java" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$/src/main/java/com/notastrinitario/app/controller" />
+    <option name="ROOT_SYNC" value="SYNC" />
+  </component>
+  <component name="ProblemsViewState">
+    <option name="selectedTabId" value="CurrentFile" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 1
+}</component>
+  <component name="ProjectId" id="34MHgi4wiJHnBJIKm8bZvuobmaw" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.readMode.enableVisualFormatting&quot;: &quot;true&quot;,
+    &quot;cf.first.check.clang-format&quot;: &quot;false&quot;,
+    &quot;cidr.known.project.marker&quot;: &quot;true&quot;,
+    &quot;git-widget-placeholder&quot;: &quot;master&quot;,
+    &quot;kotlin-language-version-configured&quot;: &quot;true&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/POWER/Documents/workspace-spring-tools-for-eclipse-4.32.0.RELEASE/Notas_Trinitario&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;configurable.group.editor&quot;
+  }
+}</component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="22030be7-882c-4005-8800-0c0c2e8cb7f3" name="Changes" comment="" />
+      <created>1761016634151</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1761016634151</updated>
+    </task>
+    <servers />
+  </component>
+</project>

@@ -1,0 +1,166 @@
+<div class="chats-page" [class.chat-open]="selectedChat">
+  <!-- Left Panel - Chat List -->
+  <div class="chats-sidebar">
+
+    <!-- Loading State -->
+    @if (isLoading) {
+      <div class="loading-container">
+        <div class="loading-spinner"></div>
+        <p>Cargando chats...</p>
+      </div>
+    }
+
+    <!-- Chat List -->
+    @if (!isLoading && filteredChats.length > 0) {
+      <div class="chats-list">
+        @for (chat of filteredChats; track trackByChatId($index, chat)) {
+          <div
+            class="chat-item"
+            [class.active]="selectedChat?.id === chat.id"
+            [class.unread]="chat.unreadCount > 0"
+            (click)="selectChat(chat)">
+            <div class="chat-avatar">
+              @if (chat.profilePicture) {
+                <img
+                  [src]="getCorrectImageUrl(chat.profilePicture)"
+                  [alt]="chat.name + ' ' + chat.surname"
+                  [title]="chat.name + ' ' + chat.surname"
+                  class="avatar-image"
+                  />
+              } @else {
+                <div class="avatar-initials">
+                  {{ getInitials(chat.name, chat.surname) }}
+                </div>
+              }
+              @if (chat.isOnline) {
+                <div class="online-indicator"></div>
+              }
+            </div>
+            <div class="chat-info">
+              <div class="chat-header-row">
+                <h3 class="chat-name">{{ chat.name }} {{ chat.surname }}</h3>
+                <span class="chat-time">{{ chat.lastMessageTime }}</span>
+              </div>
+              <div class="chat-preview">
+                <p class="last-message">{{ chat.lastMessage }}</p>
+                @if (chat.unreadCount > 0) {
+                  <span class="unread-badge">
+                    {{ chat.unreadCount > 99 ? '99+' : chat.unreadCount }}
+                  </span>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <!-- Empty State -->
+    @if (!isLoading && filteredChats.length === 0) {
+      <div class="no-chats">
+        <span class="material-icons">chat_bubble_outline</span>
+        <h4>No hay conversaciones</h4>
+        <p>Las notificaciones aparecerán aquí como chats</p>
+      </div>
+    }
+  </div>
+
+  <!-- Right Panel - Conversation -->
+  <div class="conversation-panel">
+    <!-- No Chat Selected -->
+    @if (!selectedChat) {
+      <div class="no-chat-selected">
+        <span class="material-icons">forum</span>
+        <h3>Notas Trinitario Chat</h3>
+        <p>Selecciona una conversación para ver los mensajes</p>
+      </div>
+    }
+
+    <!-- Chat Selected -->
+    @if (selectedChat) {
+      <!-- Conversation Header -->
+      <div class="conversation-header">
+        <button class="icon-btn back-btn" (click)="closeChat()">
+          <span class="material-icons">arrow_back</span>
+        </button>
+        <div class="chat-avatar">
+          @if (selectedChat.profilePicture) {
+            <img
+              [src]="getCorrectImageUrl(selectedChat.profilePicture)"
+              [alt]="selectedChat.name"
+              [title]="selectedChat.name + ' ' + selectedChat.surname"
+              class="avatar-image"
+            />
+          }
+        </div>
+        <div class="conversation-user-info">
+          <h3>{{ selectedChat.name }} {{ selectedChat.surname }}</h3>
+          @if (selectedChat.isOnline) {
+            <p>En línea</p>
+          }
+        </div>
+        <div class="conversation-actions">
+          <button class="icon-btn" title="Buscar">
+            <span class="material-icons">search</span>
+          </button>
+          <button class="icon-btn" title="Más opciones">
+            <span class="material-icons">more_vert</span>
+          </button>
+        </div>
+      </div>
+      <!-- Messages Area -->
+      <div class="messages-area" #messagesContainer>
+        @if (selectedChatMessages.length > 0) {
+          <div class="message-date-divider">
+            <span>{{ getMessageDate(selectedChatMessages[0].createdAt) }}</span>
+          </div>
+        }
+        @for (message of selectedChatMessages; track message) {
+          <div
+            class="message-bubble"
+            [class.sent]="message.isFromMe"
+            [class.received]="!message.isFromMe">
+            @if (!message.isFromMe) {
+              <div class="message-sender">
+                {{ message.senderName }}
+              </div>
+            }
+            <p class="message-text">{{ message.text }}</p>
+            <div class="message-time">{{ formatMessageTime(message.createdAt) }}</div>
+          </div>
+        }
+        @if (selectedChatMessages.length === 0) {
+          <div class="no-chats">
+            <span class="material-icons">chat</span>
+            <h4>Inicia la conversación</h4>
+            <p>Envía un mensaje para comenzar</p>
+          </div>
+        }
+      </div>
+      <!-- Message Input -->
+      <div class="message-input-area">
+        <button class="icon-btn" title="Adjuntar">
+          <span class="material-icons">attach_file</span>
+        </button>
+        <input
+          type="text"
+          class="message-input"
+          id="message-input"
+          name="newMessage"
+          placeholder="Escribe un mensaje..."
+          autocomplete="off"
+          [(ngModel)]="newMessage"
+          (keyup.enter)="sendMessage()"
+          aria-label="Escribir mensaje"
+        />
+          <button
+            class="send-btn"
+            [disabled]="!newMessage.trim()"
+            (click)="sendMessage()"
+            title="Enviar">
+            <span class="material-icons">send</span>
+          </button>
+        </div>
+      }
+    </div>
+  </div>

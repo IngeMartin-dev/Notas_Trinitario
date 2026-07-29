@@ -1,0 +1,16 @@
+{
+    "configurations": [
+        
+        
+        {
+            "type": "java",
+            "name": "Spring Boot-NotasTrinitarioApplication<Notas_Trinitario>",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "mainClass": "com.notastrinitario.app.NotasTrinitarioApplication",
+            "projectName": "Notas_Trinitario",
+            "args": "",
+            "envFile": "${workspaceFolder}/.env"
+        }
+    ]
+}

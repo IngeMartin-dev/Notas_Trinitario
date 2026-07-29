@@ -1,0 +1,257 @@
+<!-- Show full layout only when not on login route -->
+@if (!isLoginRoute()) {
+  <div>
+    <!-- Main App Container -->
+    <div class="app-container">
+      <!-- Sidebar Navigation - Show on all authenticated pages -->
+      @if (!isLoginRoute()) {
+        <aside class="sidebar" [class.sidebar-animated]="sidebarAnimated()" [class.open]="sidebarOpen()">
+          <div class="sidebar-header">
+            <div class="logo-container">
+              <img src="Logo Colegio.png" alt="Logo" class="logo" />
+              <h1>Notas<br />Trinitario</h1>
+            </div>
+          </div>
+          <nav class="nav-menu">
+            <ul>
+              <li [class.active]="activeRoute() === 'dashboard'">
+                <a routerLink="/dashboard" (click)="setActiveRoute('dashboard')">
+                  <span class="material-icons">dashboard</span>
+                  <span class="menu-text">Panel</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'students'">
+                <a routerLink="/students" (click)="setActiveRoute('students')">
+                  <span class="material-icons">school</span>
+                  <span class="menu-text">Estudiantes</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'grades'">
+                <a routerLink="/grades" (click)="setActiveRoute('grades')">
+                  <span class="material-icons">assignment</span>
+                  <span class="menu-text">Calificaciones</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'boletines'">
+                <a routerLink="/boletines" (click)="setActiveRoute('boletines')">
+                  <span class="material-icons">description</span>
+                  <span class="menu-text">Boletines</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'recoveries'">
+                <a routerLink="/recoveries" (click)="setActiveRoute('recoveries')">
+                  <span class="material-icons">school</span>
+                  <span class="menu-text">Recuperaciones</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'subjects'">
+                <a routerLink="/subjects" (click)="setActiveRoute('subjects')">
+                  <span class="material-icons">menu_book</span>
+                  <span class="menu-text">Materias</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'teachers'">
+                <a routerLink="/teachers" (click)="setActiveRoute('teachers')">
+                  <span class="material-icons">person</span>
+                  <span class="menu-text">Profesores</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'directors-group'">
+                <a routerLink="/directors-group" (click)="setActiveRoute('directors-group')">
+                  <span class="material-icons">groups</span>
+                  <span class="menu-text">Directores de Grupo</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'parents'">
+                <a routerLink="/parents" (click)="setActiveRoute('parents')">
+                  <span class="material-icons">family_restroom</span>
+                  <span class="menu-text">Padres de Familia</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'reports'">
+                <a routerLink="/reports" (click)="setActiveRoute('reports')">
+                  <span class="material-icons">assessment</span>
+                  <span class="menu-text">Reportes</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'chats'">
+                <a routerLink="/chats" (click)="setActiveRoute('chats')">
+                  <span class="material-icons">chat</span>
+                  <span class="menu-text">Chats</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'periods'">
+                <a routerLink="/periods" (click)="setActiveRoute('periods')">
+                  <span class="material-icons">calendar_month</span>
+                  <span class="menu-text">Períodos</span>
+                </a>
+              </li>
+              <li [class.active]="activeRoute() === 'settings'">
+                <a routerLink="/settings" (click)="setActiveRoute('settings')">
+                  <span class="material-icons">settings</span>
+                  <span class="menu-text">Configuración</span>
+                </a>
+              </li>
+            </ul>
+          </nav>
+          <div class="user-profile">
+            <div class="user-avatar" [attr.data-username]="getDisplayName()">
+              @if (currentUser()?.profilePicture) {
+                <img
+                  [src]="getCorrectImageUrl(currentUser()?.profilePicture)"
+                  alt="Foto de perfil del usuario"
+                  title="Foto de perfil"
+                  class="user-image"
+                />
+              }
+              @if (!currentUser()?.profilePicture) {
+                <div class="user-initials">
+                  {{ getUserInitials() }}
+                </div>
+              }
+            </div>
+            <div class="user-info">
+              <h4>{{ getDisplayName() }}</h4>
+              @if (getDisplayUsername() || getDisplayRole()) {
+                <p>
+                  @{{ getDisplayUsername() }}
+                  @if (getDisplayUsername() && getDisplayRole()) {
+                    <span>• </span>
+                  }
+                  {{ getDisplayRole() }}
+                </p>
+              }
+            </div>
+          </div>
+         </aside>
+         <div class="sidebar-backdrop" [class.show]="sidebarOpen()" (click)="toggleSidebar()"></div>
+       }
+       <!-- Main Content Area -->
+       <main class="main-content">
+         <!-- Top Navigation Bar -->
+         <header class="top-bar">
+            <div class="top-bar-left">
+              <button class="menu-toggle-btn" (click)="toggleSidebar()" aria-label="Abrir menú">
+                <span class="material-icons">menu</span>
+              </button>
+              @if (!isDashboardRoute()) {
+                <div class="search-bar">
+                  <span class="material-icons">search</span>
+                  <input
+                    type="text"
+                    id="search-input"
+                    name="search"
+                    placeholder="Buscar..."
+                    autocomplete="off"
+                    aria-label="Buscar"
+                  />
+                </div>
+              }
+            </div>
+          <div class="top-bar-actions">
+            <div class="message-container">
+              <button class="message-btn" (click)="toggleMessagesDropdown()">
+                <span class="material-icons">mail</span>
+                @if (unreadTotalCount() > 0) {
+                  <span class="message-badge">
+                    {{ unreadTotalCount() }}
+                  </span>
+                }
+              </button>
+              <app-messages-dropdown
+                [isOpen]="showMessagesDropdown()"
+                (close)="closeMessagesDropdown()"
+                (messageClick)="onMessageClick($event)"
+                [notifications]="allNotifications"
+                [messages]="allMessages"
+              >
+              </app-messages-dropdown>
+            </div>
+          </div>
+        </header>
+        <!-- Page Content -->
+        <div class="content-wrapper">
+          <router-outlet></router-outlet>
+        </div>
+      </main>
+    </div>
+    <!-- Mobile Navigation -->
+    @if (!isDashboardRoute()) {
+      <nav class="mobile-nav">
+        <a
+          [class.active]="activeRoute() === 'dashboard'"
+          routerLink="/dashboard"
+          (click)="setActiveRoute('dashboard')"
+        >
+          <span class="material-icons">dashboard</span>
+          <span>Inicio</span>
+        </a>
+        <a
+          [class.active]="activeRoute() === 'students'"
+          routerLink="/students"
+          (click)="setActiveRoute('students')"
+        >
+          <span class="material-icons">school</span>
+          <span>Estudiantes</span>
+        </a>
+        <a
+          [class.active]="activeRoute() === 'grades'"
+          routerLink="/grades"
+          (click)="setActiveRoute('grades')"
+        >
+          <span class="material-icons">assignment</span>
+          <span>Calificaciones</span>
+        </a>
+        <a
+          [class.active]="activeRoute() === 'boletines'"
+          routerLink="/boletines"
+          (click)="setActiveRoute('boletines')"
+        >
+          <span class="material-icons">description</span>
+          <span>Boletines</span>
+        </a>
+        <a
+          [class.active]="activeRoute() === 'reports'"
+          routerLink="/reports"
+          (click)="setActiveRoute('reports')"
+        >
+          <span class="material-icons">assessment</span>
+          <span>Reportes</span>
+        </a>
+        <a
+          [class.active]="activeRoute() === 'chats'"
+          routerLink="/chats"
+          (click)="setActiveRoute('chats')"
+        >
+          <span class="material-icons">chat</span>
+          <span>Chats</span>
+        </a>
+      </nav>
+    }
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" [class.hidden]="!isLoading()">
+      <div class="spinner"></div>
+    </div>
+    <!-- Notification Details Modal -->
+    <app-notification-details
+      [notification]="selectedNotification"
+      [isOpen]="showNotificationDetailsModal()"
+      (close)="closeNotificationDetailsModal()"
+      (reply)="handleNotificationReply($event)"
+    >
+    </app-notification-details>
+  </div>
+}
+
+<!-- Show only router outlet for login route -->
+@if (isLoginRoute()) {
+  <div>
+    <router-outlet></router-outlet>
+  </div>
+}
+
+<!-- Notificaciones de generación de boletines (tipo "push"): se montan
+     siempre, fuera de los dos bloques de arriba, para que la pila de
+     notificaciones con la barra de progreso se vea sin importar en qué
+     apartado esté el usuario y no desaparezca al navegar entre secciones. -->
+<app-generation-notifications></app-generation-notifications>

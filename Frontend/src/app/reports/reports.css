@@ -1,0 +1,284 @@
+/* =====================================================
+   REPORTS PAGE — Notas Trinitario design system
+   ===================================================== */
+
+.reports-container {
+  padding: var(--sp-6);
+  max-width: 1240px;
+  margin: 0 auto;
+  font-family: var(--font);
+}
+
+.reports-container h2 {
+  color: var(--text-1);
+  margin: 0 0 var(--sp-6);
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.reports-layout {
+  display: flex;
+  gap: var(--sp-5);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+/* Left Panel - Report Types */
+.report-types-panel {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  width: 280px;
+  max-width: 100%;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.report-types-panel h3 {
+  color: var(--text-1);
+  margin: 0 0 var(--sp-4);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.report-type-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.report-type-btn {
+  padding: 0.8rem 1rem;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-2);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: left;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: inherit;
+}
+
+.report-type-btn:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-50);
+}
+
+.report-type-btn.active {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+
+.report-type-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(27, 106, 235, 0.25);
+}
+
+/* Right Panel - Report Content */
+.report-content-panel {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  padding: var(--sp-5);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--border);
+}
+
+/* Selection Controls */
+.student-selection {
+  margin-bottom: var(--sp-5);
+}
+
+.student-selection h3,
+.selection-controls h3 {
+  color: var(--text-1);
+  margin: 0 0 var(--sp-4);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.selection-controls {
+  display: flex;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.grade-classroom-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 150px;
+}
+
+.grade-classroom-selector label,
+.students-list label,
+.period-selection label {
+  font-weight: 500;
+  color: var(--text-2);
+  font-size: 0.85rem;
+}
+
+.grade-classroom-selector select,
+.students-list select,
+.period-selection select {
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  font-size: 0.9rem;
+  background: var(--surface);
+  color: var(--text-1);
+  font-family: inherit;
+}
+
+.grade-classroom-selector select:focus,
+.students-list select:focus,
+.period-selection select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(27, 106, 235, 0.15);
+}
+
+.students-list {
+  margin-top: var(--sp-4);
+  min-width: 280px;
+}
+
+.period-selection {
+  margin: 0 var(--sp-4) 0 0;
+  min-width: 250px;
+}
+
+.period-selection select {
+  max-width: 200px;
+}
+
+/* Print Actions */
+.print-actions {
+  display: inline-flex;
+  gap: var(--sp-3);
+  vertical-align: top;
+  flex-wrap: wrap;
+}
+
+.print-button {
+  padding: 0.7rem 1.1rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  font-family: inherit;
+}
+
+.print-button.primary {
+  background: var(--brand);
+  color: #fff;
+}
+
+.print-button.primary:hover {
+  background: var(--brand-600);
+}
+
+.print-button.secondary {
+  background: var(--surface);
+  color: var(--text-2);
+  border-color: var(--border-strong);
+}
+
+.print-button.secondary:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-50);
+}
+
+.print-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(27, 106, 235, 0.25);
+}
+
+/* Preview Section */
+.preview-section {
+  margin-top: var(--sp-5);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+  background: var(--surface-2);
+}
+
+.preview-section h3 {
+  color: var(--text-1);
+  margin: 0 0 var(--sp-3);
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.preview-content {
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  padding: var(--sp-4);
+  min-height: 200px;
+  border: 1px solid var(--border);
+  overflow-x: auto;
+}
+
+/* ========== RESPONSIVE ========== */
+@media (max-width: 768px) {
+  .reports-container {
+    padding: var(--sp-4);
+  }
+
+  .reports-layout {
+    flex-direction: column;
+  }
+
+  .report-types-panel {
+    width: 100%;
+  }
+
+  .selection-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .grade-classroom-selector,
+  .period-selection,
+  .students-list {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .period-selection select,
+  .students-list select {
+    max-width: none;
+  }
+
+  .print-actions {
+    justify-content: flex-start;
+    margin-left: 0;
+    margin-top: var(--sp-3);
+    width: 100%;
+  }
+
+  .print-button {
+    flex: 1;
+    justify-content: center;
+  }
+}

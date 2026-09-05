@@ -1,0 +1,176 @@
+<div class="syc-container">
+  <div class="page-header">
+    <h2><span class="material-icons">event_repeat</span> Configuración de Año</h2>
+    <p class="page-subtitle">Fin de año escolar, adelantar/retroceder año, nota mínima y usuarios sin rol.</p>
+  </div>
+
+  <!-- Fecha de finalización del año escolar -->
+  <div class="syc-card">
+    <h3><span class="material-icons">event_busy</span> Fecha de finalización del año escolar</h3>
+    <p class="syc-hint">
+      El día que llegue esta fecha se borrará toda la información del año (notas, boletines,
+      recuperaciones, chats, períodos). <strong>Los estudiantes, su documento de identidad y sus
+      padres de familia enlazados se conservan siempre.</strong>
+    </p>
+    <div class="syc-row">
+      <div class="syc-field">
+        <label>Fecha de fin de año</label>
+        <input type="date" [(ngModel)]="editYearEndDate">
+      </div>
+      <div class="syc-field">
+        <label>Nota mínima para aprobar (0 - 5)</label>
+        <input type="number" step="0.1" min="0" max="5" [(ngModel)]="editMinPassingGrade">
+      </div>
+      <button class="syc-save-btn" [disabled]="savingConfig" (click)="saveConfig()">
+        @if (savingConfig) { Guardando... } @else { Guardar }
+      </button>
+    </div>
+    @if (configMessage) {
+      <p class="syc-message">{{ configMessage }}</p>
+    }
+    @if (config?.currentAcademicYear) {
+      <p class="syc-current-year">Año académico actual: <strong>{{ config?.currentAcademicYear }}</strong></p>
+    }
+  </div>
+
+  <!-- Borrado manual inmediato -->
+  <div class="syc-card syc-danger-card">
+    <h3><span class="material-icons">delete_forever</span> Cerrar año ahora</h3>
+    <p class="syc-hint">
+      Borra de inmediato toda la información del año escolar actual (no espera a la fecha configurada
+      arriba). Esta acción <strong>no se puede deshacer</strong>.
+    </p>
+    <button class="syc-danger-btn" (click)="openWipeConfirm()">
+      <span class="material-icons">warning</span> Cerrar año y borrar información
+    </button>
+    @if (wipeMessage) {
+      <p class="syc-message">{{ wipeMessage }}</p>
+    }
+  </div>
+
+  <!-- Adelantar / retroceder año -->
+  <div class="syc-card">
+    <h3><span class="material-icons">swap_vert</span> Adelantar / retroceder año</h3>
+    <p class="syc-hint">
+      Adelantar sube un grado a todos los estudiantes activos (Grado 11º se marca como graduado).
+      Retroceder deshace el último adelanto.
+    </p>
+    <div class="syc-row">
+      <button class="syc-advance-btn" [disabled]="advancing" (click)="advanceYear()">
+        <span class="material-icons">arrow_upward</span>
+        @if (advancing) { Adelantando... } @else { Adelantar año }
+      </button>
+      <button class="syc-revert-btn" [disabled]="reverting" (click)="revertYear()">
+        <span class="material-icons">arrow_downward</span>
+        @if (reverting) { Retrocediendo... } @else { Retroceder año }
+      </button>
+    </div>
+    @if (advanceMessage) {
+      <p class="syc-message">{{ advanceMessage }}</p>
+    }
+  </div>
+
+  <!-- Usuarios sin rol -->
+  <div class="syc-card">
+    <h3><span class="material-icons">person_add</span> Usuarios sin rol</h3>
+    <p class="syc-hint">Cuentas creadas que todavía no tienen un rol asignado.</p>
+
+    @if (loadingUsuarios) {
+      <p class="syc-hint">Cargando...</p>
+    }
+
+    @if (!loadingUsuarios && usuariosSinRol.length === 0) {
+      <p class="syc-empty">No hay usuarios sin rol.</p>
+    }
+
+    @if (!loadingUsuarios && usuariosSinRol.length > 0) {
+      <div class="syc-users-list">
+        @for (user of usuariosSinRol; track user.id) {
+          <div class="syc-user-row">
+            <div class="syc-user-info">
+              <strong>{{ user.name }} {{ user.surname }}</strong>
+              <span>{{ user.username }} · {{ user.email }}</span>
+            </div>
+            <select [(ngModel)]="selectedRoleByUser[user.id]">
+              <option [ngValue]="null">Selecciona un rol...</option>
+              @for (role of roles; track role.id) {
+                <option [ngValue]="role.id">{{ role.name }}</option>
+              }
+            </select>
+            <button class="syc-assign-btn" [disabled]="!selectedRoleByUser[user.id] || assigningUser[user.id]"
+                    (click)="asignarRol(user)">
+              @if (assigningUser[user.id]) { ... } @else { Asignar }
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Modal de confirmación de borrado -->
+@if (showWipeConfirm) {
+  <div class="syc-modal-overlay" (click)="closeWipeConfirm()">
+    <div class="syc-modal" (click)="$event.stopPropagation()">
+      <h3><span class="material-icons">warning</span> Confirmar borrado del año escolar</h3>
+      <p>
+        Esta acción borrará permanentemente notas, boletines, recuperaciones, chats y períodos del año
+        actual. Los estudiantes, su documento de identidad y sus padres de familia se conservarán.
+        Esta acción <strong>no se puede deshacer</strong>.
+      </p>
+      <p>Escribe <strong>BORRAR</strong> para confirmar:</p>
+      <input type="text" [(ngModel)]="wipeConfirmText" placeholder="BORRAR">
+      <div class="syc-modal-actions">
+        <button class="syc-cancel-btn" (click)="closeWipeConfirm()">Cancelar</button>
+        <button class="syc-danger-btn" [disabled]="wipeConfirmText.trim().toUpperCase() !== 'BORRAR' || wiping"
+                (click)="confirmWipe()">
+          @if (wiping) { Borrando... } @else { Borrar definitivamente }
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Pantalla completa: organizar salones tras adelantar año -->
+@if (pendientes.length > 0) {
+  <div class="syc-fullscreen-overlay">
+    <div class="syc-fullscreen">
+      <div class="syc-fullscreen-header">
+        <h2><span class="material-icons">groups</span> Organizar salones — {{ pendientes.length }} estudiante(s) pendiente(s)</h2>
+        <p class="syc-hint">
+          Marca a cada estudiante como salón A o B, separados por el grado al que fueron promovidos.
+          Los que no marques quedarán sin salón asignado hasta que vuelvas a esta pantalla.
+        </p>
+      </div>
+
+      <div class="syc-fullscreen-body">
+        @for (grupo of pendientesPorGrado; track grupo.grade) {
+          <div class="syc-grade-group">
+            <div class="syc-grade-group-header">
+              <strong>{{ grupo.grade }}</strong>
+              <span class="syc-count-badge">A: {{ countAsignados(grupo.grade, 'A') }} · B: {{ countAsignados(grupo.grade, 'B') }}</span>
+            </div>
+            @for (est of grupo.estudiantes; track est.studentId) {
+              <div class="syc-student-row">
+                <span class="syc-student-name">{{ est.surname }} {{ est.name }}</span>
+                <div class="syc-salon-toggle">
+                  <button type="button" class="salon-btn" [class.active]="asignaciones[est.studentId] === 'A'"
+                          (click)="toggleAsignacion(est.studentId, 'A')">A</button>
+                  <button type="button" class="salon-btn" [class.active]="asignaciones[est.studentId] === 'B'"
+                          (click)="toggleAsignacion(est.studentId, 'B')">B</button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </div>
+
+      <div class="syc-fullscreen-footer">
+        <button class="syc-cancel-btn" (click)="cerrarOrganizacionPorAhora()">Continuar después</button>
+        <button class="syc-save-btn" [disabled]="savingClassrooms" (click)="guardarOrganizacion()">
+          @if (savingClassrooms) { Guardando... } @else { Guardar organización de salones }
+        </button>
+      </div>
+    </div>
+  </div>
+}

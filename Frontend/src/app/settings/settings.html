@@ -1,0 +1,564 @@
+<!-- Success Notification -->
+<div class="success-notification" [class.show]="showSuccessNotification()">
+  <div class="notification-content">
+    <div class="checkmark-circle">
+      <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+        <path class="checkmark__check" fill="none" d="M14 27l8 8 16-16"/>
+      </svg>
+    </div>
+    <h3>¡Perfil actualizado!</h3>
+    <p>Tu información ha sido cambiada con éxito</p>
+  </div>
+</div>
+
+<!-- Logout Confirmation Dialog -->
+<div class="logout-modal-overlay" [class.show]="showLogoutConfirmation()" (click)="cancelLogout()">
+  <div class="logout-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmar Cierre de Sesión</h3>
+    </div>
+    <div class="modal-body">
+      <p>¿Estás seguro de que quieres cerrar sesión?</p>
+    </div>
+    <div class="modal-actions">
+      <button class="cancel-btn" (click)="cancelLogout()">
+        <span class="material-icons">close</span>
+        Cancelar
+      </button>
+      <button class="confirm-btn" (click)="confirmLogout()">
+        <span class="material-icons">check</span>
+        Confirmar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Change Password Modal -->
+<div class="logout-modal-overlay" [class.show]="showChangePasswordModal()" (click)="closeChangePasswordModal()">
+  <div class="logout-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Cambiar Contraseña</h3>
+    </div>
+    <div class="modal-body">
+        @if (passwordChangeSuccess()) {
+          <div class="password-success">
+            <span class="material-icons success-icon">check_circle</span>
+            <p>¡Contraseña actualizada correctamente!</p>
+          </div>
+        } @else {
+          <div class="form-group">
+            <label for="current-password">Contraseña Actual</label>
+            <input type="password" id="current-password" name="currentPassword" [(ngModel)]="currentPassword" placeholder="Ingresa tu contraseña actual" autocomplete="current-password">
+          </div>
+          <div class="form-group">
+            <label for="new-password">Nueva Contraseña</label>
+            <input type="password" id="new-password" name="newPassword" [(ngModel)]="newPassword" placeholder="Ingresa la nueva contraseña" autocomplete="new-password">
+          </div>
+          <div class="form-group">
+            <label for="confirm-password">Confirmar Contraseña</label>
+            <input type="password" id="confirm-password" name="confirmPassword" [(ngModel)]="confirmPassword" placeholder="Confirma la nueva contraseña" autocomplete="new-password">
+          </div>
+          @if (passwordChangeError()) {
+            <p class="error-message">{{ passwordChangeError() }}</p>
+          }
+        }
+    </div>
+    @if (!passwordChangeSuccess()) {
+      <div class="modal-actions">
+        <button class="cancel-btn" (click)="closeChangePasswordModal()">
+          <span class="material-icons">close</span>
+          Cancelar
+        </button>
+        <button class="confirm-btn" (click)="changePassword()" [disabled]="isChangingPassword()">
+          @if (isChangingPassword()) {
+            <span class="material-icons">hourglass_empty</span>
+            Cambiando...
+          } @else {
+            <span class="material-icons">check</span>
+            Cambiar
+          }
+        </button>
+      </div>
+    }
+  </div>
+</div>
+
+<!-- Terms and Conditions Modal -->
+<div class="logout-modal-overlay" [class.show]="showTermsModal()" (click)="closeTermsModal()">
+  <div class="logout-modal legal-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Términos y Condiciones</h3>
+    </div>
+    <div class="modal-body legal-content">
+      <h4>1. ACEPTACIÓN DE TÉRMINOS</h4>
+      <p>Al acceder y utilizar la aplicación "Notas Trinitario", usted acepta estar sujeto a estos términos y condiciones. Si no está de acuerdo con alguno de estos términos, no debe utilizar esta aplicación.</p>
+      
+      <h4>2. DESCRIPCIÓN DEL SERVICIO</h4>
+      <p>Notas Trinitario es una plataforma educativa desarrollada exclusivamente para el Colegio Trinitario, que permite a estudiantes y docentes gestionar calificaciones, reportes académicos y comunicación institucional.</p>
+      
+      <h4>3. USO AUTORIZADO</h4>
+      <p>Esta aplicación está destinada exclusivamente a:</p>
+      <ul>
+        <li>Estudiantes matriculados en el Colegio Trinitario</li>
+        <li>Docentes y personal administrativo del colegio</li>
+        <li>Padres o representantes legales de estudiantes</li>
+      </ul>
+      <p>El uso de la aplicación para fines distintos a los educativos está prohibido.</p>
+      
+      <h4>4. CUENTA DE USUARIO</h4>
+      <p>Cada usuario es responsable de mantener la confidencialidad de su cuenta y contraseña. El Colegio Trinitario no se hace responsable por cualquier pérdida o daño derivado del incumplimiento de esta obligación.</p>
+      
+      <h4>5. PRIVACIDAD Y PROTECCIÓN DE DATOS</h4>
+      <p>La información personal recopilada está sujeta a nuestra Política de Privacidad. Al usar esta aplicación, usted consiente el tratamiento de sus datos conforme a dicha política.</p>
+      
+      <h4>6. PROPIEDAD INTELECTUAL</h4>
+      <p>Todo el contenido, diseño, gráficos y código de la aplicación son propiedad del Colegio Trinitario y están protegidos por las leyes de propiedad intelectual vigentes.</p>
+      
+      <h4>7. LIMITACIÓN DE RESPONSABILIDAD</h4>
+      <p>El Colegio Trinitario no garantiza que la aplicación esté libre de errores o disponible de manera continua. El uso de la aplicación es bajo responsabilidad del usuario.</p>
+      
+      <h4>8. MODIFICACIONES</h4>
+      <p>El Colegio Trinitario se reserva el derecho de modificar estos términos en cualquier momento. Las modificaciones entrarán en vigor desde su publicación en la aplicación.</p>
+      
+      <h4>9. CONTACTO</h4>
+      <p>Para consultas sobre estos términos, contacte a soporte@colegiotrinitario.edu.co</p>
+      
+      <p class="last-update">Última actualización: Febrero {{ currentYear }}</p>
+    </div>
+    <div class="modal-actions">
+      <button class="confirm-btn" (click)="closeTermsModal()">
+        <span class="material-icons">check</span>
+        Aceptar y Cerrar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Privacy Policy Modal -->
+<div class="logout-modal-overlay" [class.show]="showPrivacyModal()" (click)="closePrivacyModal()">
+  <div class="logout-modal legal-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Política de Privacidad</h3>
+    </div>
+    <div class="modal-body legal-content">
+      <h4>1. INFORMACIÓN RECOPILADA</h4>
+      <p>Recopilamos la siguiente información personal:</p>
+      <ul>
+        <li>Información de perfil: nombre, apellido, correo electrónico</li>
+        <li>Datos académicos: calificaciones, asistencia, reportes</li>
+        <li>Información de uso de la aplicación</li>
+        <li>Cookies y datos de navegación</li>
+      </ul>
+      
+      <h4>2. USO DE LA INFORMACIÓN</h4>
+      <p>La información recopilada se utiliza para:</p>
+      <ul>
+        <li>Gestionar el acceso a la plataforma educativa</li>
+        <li>Registrar y mostrar calificaciones académicas</li>
+        <li>Comunicar información institucional</li>
+        <li>Mejorar y personalizar la experiencia del usuario</li>
+        <li>Cumplir con obligaciones legales y reglamentarias</li>
+      </ul>
+      
+      <h4>3. PROTECCIÓN DE DATOS</h4>
+      <p>Implementamos medidas de seguridad técnicas y organizativas para proteger sus datos personales contra:</p>
+      <ul>
+        <li>Acceso no autorizado</li>
+        <li>Pérdida o destrucción accidental</li>
+        <li>Manipulación o difusión no autorizada</li>
+      </ul>
+      
+      <h4>4. COMPARTICIÓN DE INFORMACIÓN</h4>
+      <p>Sus datos personales NO serán compartidos con terceros, excepto cuando:</p>
+      <ul>
+        <li>Sea requerido por autoridades educativas competentes</li>
+        <li>Sea necesario para cumplir obligaciones legales</li>
+        <li>Contemos con su consentimiento expreso</li>
+      </ul>
+      
+      <h4>5. DERECHOS DEL USUARIO</h4>
+      <p>Como usuario, usted tiene derecho a:</p>
+      <ul>
+        <li>Acceder a sus datos personales</li>
+        <li>Rectificar datos inexactos</li>
+        <li>Solicitar la eliminación de sus datos</li>
+        <li>Oponerse al tratamiento de sus datos</li>
+        <li>Exportar una copia de sus datos</li>
+      </ul>
+      
+      <h4>6. RETENCIÓN DE DATOS</h4>
+      <p>Los datos personales se conservarán mientras dure la relación académica con el Colegio Trinitario y posteriormente durante el período exigido por la legislación educativa vigente.</p>
+      
+      <h4>7. COOKIES</h4>
+      <p>La aplicación utiliza cookies para mejorar la experiencia de usuario. Puede configurar su navegador para rechazar cookies, aunque esto puede afectar algunas funcionalidades.</p>
+      
+      <h4>8. MENORES DE EDAD</h4>
+      <p>Para usuarios menores de edad, el tratamiento de datos se realiza bajo supervisión de sus padres o representantes legales.</p>
+      
+      <h4>9. CAMBIOS A ESTA POLÍTICA</h4>
+      <p>Esta política puede actualizarse periódicamente. Notificaremos cualquier cambio importante a través de la aplicación.</p>
+      
+      <h4>10. CONTACTO</h4>
+      <p>Para ejercer sus derechos de privacidad o realizar consultas, contacte a: soporte@colegiotrinitario.edu.co</p>
+      
+      <p class="last-update">Última actualización: Febrero {{ currentYear }}</p>
+    </div>
+    <div class="modal-actions">
+      <button class="confirm-btn" (click)="closePrivacyModal()">
+        <span class="material-icons">check</span>
+        Entendido y Cerrar
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="settings-container">
+  <h1>Configuración</h1>
+
+  <div class="settings-section">
+    <h2>Perfil de Usuario</h2>
+
+    <div class="profile-section">
+      <div class="current-avatar">
+        @if (previewUrl()) {
+          <img [src]="previewUrl()" alt="Vista previa" class="avatar-preview" (error)="onImageError($event)">
+        }
+        @if (!previewUrl() && currentUser()?.profilePicture) {
+          <img [src]="getCorrectImageUrl(currentUser()?.profilePicture)" alt="Avatar" (error)="onImageError($event)">
+        }
+        @if (!previewUrl() && !currentUser()?.profilePicture) {
+          <div class="user-initials">
+            {{ getUserInitials() }}
+          </div>
+        }
+        @if (previewUrl()) {
+          <div class="preview-badge">
+            <span class="material-icons">check_circle</span>
+          </div>
+        }
+        @if (!previewUrl() && currentUser()?.profilePicture) {
+          <div class="profile-badge">
+            <span class="material-icons">photo_camera</span>
+          </div>
+        }
+      </div>
+
+      <div class="profile-info-container">
+        <!-- Profile Info - always visible -->
+        <div class="profile-info">
+          <h3>{{ currentUser()?.name && currentUser()?.surname ? (currentUser()?.name + ' ' + currentUser()?.surname) : (currentUser()?.name || currentUser()?.username || 'Usuario sin nombre') }}</h3>
+          <p>{{ currentUser()?.email || 'Sin email' }}</p>
+        </div>
+        
+        <!-- Inline Edit Form (appears in white space beside profile info) -->
+        @if (isEditingProfile()) {
+          <div class="inline-edit-form" [class.hiding]="isFormHiding()">
+            <div class="edit-fields-inline">
+               <input 
+                 type="text" 
+                 id="edit-name" 
+                 name="editName"
+                 [(ngModel)]="editName" 
+                 placeholder="Nombre"
+                 class="input-inline">
+               
+               <input 
+                 type="text" 
+                 id="edit-surname" 
+                 name="editSurname"
+                 [(ngModel)]="editSurname" 
+                 placeholder="Apellido"
+                 class="input-inline">
+               
+               <input 
+                 type="email" 
+                 id="edit-email" 
+                 name="editEmail"
+                 [(ngModel)]="editEmail" 
+                 placeholder="Correo"
+                 class="input-inline">
+              
+              <div class="btn-row">
+                <button class="btn-inline save" (click)="saveProfile()" [disabled]="isUpdatingProfile()" title="Guardar">
+                  <span class="material-icons">check</span>
+                </button>
+                <button class="btn-inline cancel" (click)="cancelEditProfile()" [disabled]="isUpdatingProfile()" title="Cancelar">
+                  <span class="material-icons">close</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        }
+      </div>
+    </div>
+
+    <div class="upload-section">
+      <div class="action-buttons-row">
+        <label for="profile-picture" class="action-button upload-button">
+          <span class="material-icons">cloud_upload</span>
+          <span class="button-text">Subir Foto de Perfil</span>
+        </label>
+        <input
+          type="file"
+          id="profile-picture"
+          name="profilePicture"
+          accept="image/*"
+          (change)="onFileSelected($event)"
+          class="file-input">
+
+        <button class="action-button edit-button" (click)="startEditProfile()">
+          <span class="material-icons">edit</span>
+          <span class="button-text">Cambiar Nombre</span>
+        </button>
+      </div>
+
+      @if (selectedFile) {
+        <div class="upload-preview">
+          <img [src]="previewUrl()" alt="Vista previa" class="preview-thumbnail">
+          <div class="upload-info">
+            <span class="material-icons">image</span>
+            <span>{{ selectedFile.name }}</span>
+          </div>
+          <div class="upload-actions">
+            <button (click)="uploadProfilePicture()" class="confirm-btn">
+              <span class="material-icons">check</span>
+              <span>Confirmar</span>
+            </button>
+            <button (click)="clearPreview()" class="cancel-btn">
+              <span class="material-icons">close</span>
+              <span>Cancelar</span>
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+
+    <div class="settings-section">
+      <h2>Apariencia</h2>
+      <div class="settings-options">
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">dark_mode</span>
+            <div class="setting-text">
+              <h3>Modo Oscuro</h3>
+              <p>Activa el estilo Tech / Cyberpunk de la plataforma</p>
+            </div>
+          </div>
+          <label class="switch">
+            <input
+              type="checkbox"
+              id="dark-mode"
+              name="darkMode"
+              [checked]="isDarkTheme()"
+              (change)="onThemeChange($any($event.target).checked)"
+              title="Modo oscuro">
+            <span class="slider round"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2>Notificaciones</h2>
+      <div class="settings-options">
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">notifications</span>
+            <div class="setting-text">
+              <h3>Notificaciones Push</h3>
+              <p>Recibe notificaciones en tiempo real</p>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="push-notifications" name="pushNotifications" [checked]="pushNotificationsEnabled()" (change)="onPushNotificationChange($any($event.target).checked)" title="Notificaciones push">
+            <span class="slider round"></span>
+          </label>
+        </div>
+        
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">email</span>
+            <div class="setting-text">
+              <h3>Notificaciones por Email</h3>
+              <p>Recibe actualizaciones por correo electrónico</p>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="email-notifications" name="emailNotifications" [checked]="emailNotificationsEnabled()" (change)="onEmailNotificationChange($any($event.target).checked)" title="Notificaciones por email">
+            <span class="slider round"></span>
+          </label>
+        </div>
+        
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">message</span>
+            <div class="setting-text">
+              <h3>Mensajes</h3>
+              <p>Notificaciones de nuevos mensajes</p>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="message-notifications" name="messageNotifications" [checked]="messageNotificationsEnabled()" (change)="onMessageNotificationChange($any($event.target).checked)" title="Notificaciones de mensajes">
+            <span class="slider round"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2>Seguridad</h2>
+      <div class="settings-options">
+        <div class="setting-item clickable" (click)="openChangePasswordModal()">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">lock</span>
+            <div class="setting-text">
+              <h3>Cambiar Contraseña</h3>
+              <p>Actualiza tu contraseña de acceso</p>
+            </div>
+          </div>
+          <span class="material-icons chevron">chevron_right</span>
+        </div>
+        
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">security</span>
+            <div class="setting-text">
+              <h3>Autenticación de Dos Factores</h3>
+              <p>Añade una capa extra de seguridad</p>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="two-factor-auth" name="twoFactorAuth" title="Autenticación de dos factores">
+            <span class="slider round"></span>
+          </label>
+        </div>
+        
+        <div class="setting-item clickable">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">devices</span>
+            <div class="setting-text">
+              <h3>Sesiones Activas</h3>
+              <p>Gestiona tus dispositivos conectados</p>
+            </div>
+          </div>
+          <span class="material-icons chevron">chevron_right</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2>Privacidad</h2>
+      <div class="settings-options">
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">visibility</span>
+            <div class="setting-text">
+              <h3>Perfil Público</h3>
+              <p>Permite que otros usuarios te encuentren</p>
+            </div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="public-profile" name="publicProfile" checked title="Perfil público">
+            <span class="slider round"></span>
+          </label>
+        </div>
+        
+        <div class="setting-item clickable" (click)="downloadMyData()">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">download</span>
+            <div class="setting-text">
+              <h3>Descargar mis Datos</h3>
+              <p>Exporta una copia de tu información</p>
+            </div>
+          </div>
+          <span class="material-icons chevron">chevron_right</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2>Ayuda</h2>
+      <div class="settings-options">
+        <div class="setting-item clickable">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">help</span>
+            <div class="setting-text">
+              <h3>Preguntas Frecuentes</h3>
+              <p>Respuestas a dudas comunes</p>
+            </div>
+          </div>
+          <span class="material-icons chevron">chevron_right</span>
+        </div>
+        
+        <div class="setting-item clickable" (click)="contactSupport()">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">support_agent</span>
+            <div class="setting-text">
+              <h3>Contactar Soporte</h3>
+              <p>Obtén ayuda del equipo técnico</p>
+            </div>
+          </div>
+          <span class="material-icons chevron">chevron_right</span>
+        </div>
+        
+        <div class="setting-item clickable" (click)="sendFeedback()">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">feedback</span>
+            <div class="setting-text">
+              <h3>Enviar Comentarios</h3>
+              <p>Ayúdanos a mejorar la aplicación</p>
+            </div>
+          </div>
+          <span class="material-icons chevron">chevron_right</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2>Acerca de</h2>
+      <div class="settings-options">
+        <div class="setting-item">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">info</span>
+            <div class="setting-text">
+              <h3>Notas Trinitario</h3>
+              <p>Versión 1.0.0</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="setting-item clickable" (click)="openTerms()">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">description</span>
+            <div class="setting-text">
+              <h3>Términos y Condiciones</h3>
+              <p>Lee nuestros términos de uso</p>
+            </div>
+          </div>
+          <span class="material-icons chevron">chevron_right</span>
+        </div>
+        
+        <div class="setting-item clickable" (click)="openPrivacyPolicy()">
+          <div class="setting-info">
+            <span class="material-icons setting-icon">privacy_tip</span>
+            <div class="setting-text">
+              <h3>Política de Privacidad</h3>
+              <p>Cómo protegemos tus datos</p>
+            </div>
+          </div>
+          <span class="material-icons chevron">chevron_right</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <h2>Acciones de Cuenta</h2>
+
+      <div class="account-actions">
+        <button class="logout-btn" (click)="logout()">
+          <span class="material-icons">logout</span>
+          <span>Cerrar Sesión</span>
+        </button>
+      </div>
+    </div>
+  </div>

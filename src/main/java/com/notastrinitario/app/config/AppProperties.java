@@ -51,7 +51,7 @@ public class AppProperties {
     }
 
     public static class Ai {
-        private String mistralApiKey = "U31NiKLM8WVUROCaZOLzV8eaEbiwwb45";
+        private String mistralApiKey;
         private String mistralModel = "mistral-large-2512";
         private String mistralUrl = "https://api.mistral.ai/v1/chat/completions";
 

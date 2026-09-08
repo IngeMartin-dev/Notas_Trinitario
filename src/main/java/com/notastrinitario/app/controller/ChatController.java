@@ -1,8 +1,13 @@
 package com.notastrinitario.app.controller;
 
 import com.notastrinitario.app.entity.ChatMessage;
+import com.notastrinitario.app.entity.Student;
+import com.notastrinitario.app.entity.Subject;
 import com.notastrinitario.app.entity.User;
 import com.notastrinitario.app.repository.ChatMessageRepository;
+import com.notastrinitario.app.repository.HomeroomAssignmentRepository;
+import com.notastrinitario.app.repository.StudentRepository;
+import com.notastrinitario.app.repository.SubjectRepository;
 import com.notastrinitario.app.repository.UserRepository;
 import com.notastrinitario.app.service.FcmPushService;
 import org.springframework.http.HttpStatus;
@@ -20,11 +25,16 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Chat interno estilo WhatsApp entre profesores, directores de grupo y
- * administradores. Los padres de familia NUNCA aparecen en el directorio de
- * contactos (ni como remitentes ni como destinatarios posibles para nadie),
- * aunque si un padre abre esta sección sí puede escribirle a un
- * profesor/administrador.
+ * Chat interno estilo WhatsApp entre profesores, directores de grupo,
+ * administradores Y padres/estudiantes.
+ *
+ * - El personal (ADMIN / TEACHER / DIRECTOR_DE_GRUPO) ve en su directorio al
+ *   resto del personal, MÁS cualquier padre que ya le haya escrito (para
+ *   poder verlo y responderle).
+ * - Un padre/estudiante (rol PARENT) ve en su directorio a TODOS los
+ *   profesores que dictan clase en el grado de su(s) hijo(s), al director de
+ *   grupo de ese grado/salón, y a todos los administradores. Nunca ve a
+ *   otros padres.
  *
  * Nota sobre "tiempo real": los mensajes se guardan al instante en la base
  * de datos y se dispara una notificación push (FCM) de inmediato al
@@ -37,7 +47,7 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/chats")
-@PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
+@PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO','PARENT')")
 public class ChatController {
 
     private static final String CHAT_UPLOAD_DIR = "uploads/chat";
@@ -52,28 +62,91 @@ public class ChatController {
     private final ChatMessageRepository chatMessageRepository;
     private final UserRepository userRepository;
     private final FcmPushService fcmPushService;
+    private final StudentRepository studentRepository;
+    private final SubjectRepository subjectRepository;
+    private final HomeroomAssignmentRepository homeroomAssignmentRepository;
 
     public ChatController(ChatMessageRepository chatMessageRepository,
                            UserRepository userRepository,
-                           FcmPushService fcmPushService) {
+                           FcmPushService fcmPushService,
+                           StudentRepository studentRepository,
+                           SubjectRepository subjectRepository,
+                           HomeroomAssignmentRepository homeroomAssignmentRepository) {
         this.chatMessageRepository = chatMessageRepository;
         this.userRepository = userRepository;
         this.fcmPushService = fcmPushService;
+        this.studentRepository = studentRepository;
+        this.subjectRepository = subjectRepository;
+        this.homeroomAssignmentRepository = homeroomAssignmentRepository;
+    }
+
+    private int parseGradeNumber(String grade) {
+        if (grade == null) return 0;
+        String num = grade.replaceAll("[^0-9]", "");
+        return num.isEmpty() ? 0 : Integer.parseInt(num);
+    }
+
+    /** Profesores + director de grupo relevantes para los hijos de un padre,
+     *  más todos los administradores. Sin duplicados. */
+    private List<User> contactsForParent(Long parentUserId) {
+        List<Student> children = studentRepository.findByParentId(parentUserId);
+        Map<Long, User> byId = new LinkedHashMap<>();
+
+        // Todos los administradores, siempre.
+        userRepository.findAll().stream()
+                .filter(u -> u.getRole() != null && "ADMIN".equalsIgnoreCase(u.getRole().getName()))
+                .forEach(u -> byId.put(u.getId(), u));
+
+        for (Student child : children) {
+            int gradeNum = parseGradeNumber(child.getGrade());
+            if (gradeNum > 0) {
+                // Profesores de cualquier materia asignada a ese grado.
+                for (Subject subject : subjectRepository.findByGradeRange(gradeNum)) {
+                    User teacher = subject.getTeacher();
+                    if (teacher != null) {
+                        byId.put(teacher.getId(), teacher);
+                    }
+                }
+            }
+            // Director de grupo del grado/salón del estudiante.
+            if (child.getGrade() != null && child.getClassGroup() != null) {
+                homeroomAssignmentRepository.findByGradeAndClassroom(child.getGrade(), child.getClassGroup())
+                        .map(a -> a.getUser())
+                        .filter(Objects::nonNull)
+                        .ifPresent(u -> byId.put(u.getId(), u));
+            }
+        }
+
+        return new ArrayList<>(byId.values());
     }
 
     // ── Directorio de contactos ─────────────────────────────────────────
-    // Todos los profesores, directores de grupo y administradores, excepto
-    // uno mismo. Nunca incluye padres de familia.
     @GetMapping("/contacts")
     public ResponseEntity<?> getContacts(@RequestParam Long currentUserId) {
-        List<User> users = userRepository.findAll().stream()
-                .filter(u -> u.getRole() != null)
-                .filter(u -> {
-                    String role = u.getRole().getName();
-                    return "ADMIN".equalsIgnoreCase(role)
-                            || "TEACHER".equalsIgnoreCase(role)
-                            || "DIRECTOR_DE_GRUPO".equalsIgnoreCase(role);
-                })
+        User currentUser = userRepository.findById(currentUserId).orElse(null);
+        String currentRole = currentUser != null && currentUser.getRole() != null
+                ? currentUser.getRole().getName() : "";
+
+        List<User> users;
+        if ("PARENT".equalsIgnoreCase(currentRole)) {
+            users = contactsForParent(currentUserId);
+        } else {
+            // Personal: el resto del personal, MÁS los padres que ya le hayan
+            // escrito a este usuario (para poder verlos y responderles).
+            Set<Long> parentIdsWhoWrote = chatMessageRepository.findDistinctSenderIdsTo(currentUserId);
+            users = userRepository.findAll().stream()
+                    .filter(u -> u.getRole() != null)
+                    .filter(u -> {
+                        String role = u.getRole().getName();
+                        boolean isStaff = "ADMIN".equalsIgnoreCase(role) || "TEACHER".equalsIgnoreCase(role)
+                                || "DIRECTOR_DE_GRUPO".equalsIgnoreCase(role);
+                        boolean isParentWhoWrote = "PARENT".equalsIgnoreCase(role) && parentIdsWhoWrote.contains(u.getId());
+                        return isStaff || isParentWhoWrote;
+                    })
+                    .collect(Collectors.toList());
+        }
+
+        users = users.stream()
                 .filter(u -> !u.getId().equals(currentUserId))
                 .sorted(Comparator.comparing(User::getSurname, Comparator.nullsLast(String::compareToIgnoreCase))
                         .thenComparing(User::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
@@ -156,7 +229,7 @@ public class ChatController {
             User receiver = userRepository.findById(receiverId)
                     .orElseThrow(() -> new RuntimeException("Destinatario no encontrado"));
 
-            if (!esContactoValido(receiver)) {
+            if (!esParEnviarioValido(sender, receiver)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "No se puede enviar mensajes a este usuario"));
             }
@@ -202,7 +275,7 @@ public class ChatController {
             User receiver = userRepository.findById(receiverId)
                     .orElseThrow(() -> new RuntimeException("Destinatario no encontrado"));
 
-            if (!esContactoValido(receiver)) {
+            if (!esParEnviarioValido(sender, receiver)) {
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
                         .body(Map.of("error", "No se puede enviar mensajes a este usuario"));
             }
@@ -259,9 +332,23 @@ public class ChatController {
 
     // ═══════════════════════ helpers ════════════════════════════════════
 
-    private boolean esContactoValido(User receiver) {
-        if (receiver.getRole() == null) return false;
-        String role = receiver.getRole().getName();
+    /** Un par sender/receiver es válido si: ambos son personal (ADMIN,
+     *  TEACHER, DIRECTOR_DE_GRUPO), o uno es personal y el otro es un padre
+     *  (PARENT). Nunca se permite padre-a-padre. */
+    private boolean esParEnviarioValido(User sender, User receiver) {
+        if (sender.getRole() == null || receiver.getRole() == null) return false;
+        String senderRole = sender.getRole().getName();
+        String receiverRole = receiver.getRole().getName();
+        boolean senderIsStaff = isStaffRole(senderRole);
+        boolean receiverIsStaff = isStaffRole(receiverRole);
+        boolean senderIsParent = "PARENT".equalsIgnoreCase(senderRole);
+        boolean receiverIsParent = "PARENT".equalsIgnoreCase(receiverRole);
+        return (senderIsStaff && receiverIsStaff)
+                || (senderIsStaff && receiverIsParent)
+                || (senderIsParent && receiverIsStaff);
+    }
+
+    private boolean isStaffRole(String role) {
         return "ADMIN".equalsIgnoreCase(role) || "TEACHER".equalsIgnoreCase(role)
                 || "DIRECTOR_DE_GRUPO".equalsIgnoreCase(role);
     }

@@ -354,8 +354,24 @@ public class SubjectGradeController {
 
                 List<Map<String, Object>> materiasOut = new ArrayList<>();
                 for (Map.Entry<String, List<SubjectGrade>> entry : porMateria.entrySet()) {
-                    List<Map<String, Object>> items = new ArrayList<>();
+                    // Puede haber más de una fila de SubjectGrade para el MISMO
+                    // gradeName (p.ej. "Tarea 1") si en algún momento se guardó
+                    // sin subjectId/teacherId y luego con esos datos, dejando
+                    // un registro viejo huérfano. Para no mostrarle al padre
+                    // notas duplicadas, nos quedamos con UNA sola fila por
+                    // gradeName: la más recientemente actualizada, que es la
+                    // que refleja lo que el profesor tiene hoy en su planilla.
+                    Map<String, SubjectGrade> masRecientePorNombre = new LinkedHashMap<>();
                     for (SubjectGrade g : entry.getValue()) {
+                        String key = g.getGradeName() != null ? g.getGradeName() : "";
+                        SubjectGrade actual = masRecientePorNombre.get(key);
+                        if (actual == null || esMasReciente(g, actual)) {
+                            masRecientePorNombre.put(key, g);
+                        }
+                    }
+
+                    List<Map<String, Object>> items = new ArrayList<>();
+                    for (SubjectGrade g : masRecientePorNombre.values()) {
                         if ("nFinal".equalsIgnoreCase(g.getGradeName())) continue; // se resume aparte como finalGrade
                         Map<String, Object> item = new LinkedHashMap<>();
                         item.put("gradeName", g.getGradeName());
@@ -385,5 +401,26 @@ public class SubjectGradeController {
         }
 
         return ResponseEntity.ok(resultado);
+    }
+
+    /** true si "candidata" debe reemplazar a "actual" como la fila vigente
+     *  de una nota (misma materia/gradeName): se prefiere la que tenga
+     *  updatedAt más reciente y, si empatan o falta esa fecha, la de mayor
+     *  id (creada después). Esto evita mostrarle al padre una nota vieja
+     *  huérfana junto a la vigente. */
+    private boolean esMasReciente(SubjectGrade candidata, SubjectGrade actual) {
+        java.time.LocalDateTime tCand = candidata.getUpdatedAt() != null ? candidata.getUpdatedAt() : candidata.getCreatedAt();
+        java.time.LocalDateTime tActual = actual.getUpdatedAt() != null ? actual.getUpdatedAt() : actual.getCreatedAt();
+        if (tCand != null && tActual != null && !tCand.equals(tActual)) {
+            return tCand.isAfter(tActual);
+        }
+        if (tCand != null && tActual == null) return true;
+        if (tCand == null && tActual != null) return false;
+        Long idCand = candidata.getId();
+        Long idActual = actual.getId();
+        if (idCand != null && idActual != null) {
+            return idCand > idActual;
+        }
+        return false;
     }
 }

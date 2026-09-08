@@ -3,10 +3,11 @@ package com.notastrinitario.app.controller;
 import com.notastrinitario.app.entity.RefreshToken;
 import com.notastrinitario.app.entity.User;
 import com.notastrinitario.app.repository.UserRepository;
-import com.notastrinitario.app.repository.RefreshTokenRepository;
 import com.notastrinitario.app.security.JwtUtil;
 import com.notastrinitario.app.security.BruteForceProtection;
 import com.notastrinitario.app.service.RefreshTokenService;
+import com.notastrinitario.app.service.TwoFactorService;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.core.Authentication;
@@ -15,6 +16,8 @@ import jakarta.validation.Valid;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -26,15 +29,16 @@ public class AuthController {
     private final JwtUtil jwtUtil;
     private final BruteForceProtection bruteForceProtection;
     private final RefreshTokenService refreshTokenService;
-    private final RefreshTokenRepository refreshTokenRepository;
+    private final TwoFactorService twoFactorService;
 
     public AuthController(UserRepository userRepository, JwtUtil jwtUtil, BruteForceProtection bruteForceProtection,
-                          RefreshTokenService refreshTokenService, RefreshTokenRepository refreshTokenRepository) {
+                          RefreshTokenService refreshTokenService,
+                          TwoFactorService twoFactorService) {
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
         this.bruteForceProtection = bruteForceProtection;
         this.refreshTokenService = refreshTokenService;
-        this.refreshTokenRepository = refreshTokenRepository;
+        this.twoFactorService = twoFactorService;
     }
 
     public static String hashSHA256(String password) {
@@ -53,8 +57,45 @@ public class AuthController {
         }
     }
 
+    /** Arma un texto legible de dispositivo a partir del User-Agent, para
+     *  mostrarlo en "Sesiones Activas" (ej: "Chrome en Windows"). */
+    private String describeDevice(HttpServletRequest request) {
+        String ua = request.getHeader("User-Agent");
+        if (ua == null || ua.isBlank()) return "Dispositivo desconocido";
+        String browser = "Navegador";
+        if (ua.contains("Edg/")) browser = "Edge";
+        else if (ua.contains("Chrome/") && !ua.contains("Edg/")) browser = "Chrome";
+        else if (ua.contains("Firefox/")) browser = "Firefox";
+        else if (ua.contains("Safari/") && !ua.contains("Chrome/")) browser = "Safari";
+        String os = "Desconocido";
+        if (ua.contains("Windows")) os = "Windows";
+        else if (ua.contains("Mac OS")) os = "macOS";
+        else if (ua.contains("Android")) os = "Android";
+        else if (ua.contains("iPhone") || ua.contains("iPad")) os = "iOS";
+        else if (ua.contains("Linux")) os = "Linux";
+        return browser + " en " + os;
+    }
+
+    private String clientIp(HttpServletRequest request) {
+        String forwarded = request.getHeader("X-Forwarded-For");
+        if (forwarded != null && !forwarded.isBlank()) {
+            return forwarded.split(",")[0].trim();
+        }
+        return request.getRemoteAddr();
+    }
+
+    /** "juan.perez@gmail.com" -> "ju***@gmail.com" (para mostrarle al
+     *  usuario a qué correo llegó el código sin revelarlo completo). */
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) return "tu correo registrado";
+        String[] parts = email.split("@", 2);
+        String local = parts[0];
+        String visible = local.length() <= 2 ? local : local.substring(0, 2);
+        return visible + "***@" + parts[1];
+    }
+
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> login(@RequestBody Map<String, String> body, HttpServletRequest request) {
         String username = body.get("username");
 
         if (bruteForceProtection.isBlocked(username)) {
@@ -96,9 +137,33 @@ public class AuthController {
 
             if (passwordMatches) {
                 bruteForceProtection.recordSuccessfulLogin(username);
+
+                // Si el usuario tiene 2FA activado, NO se entregan tokens
+                // todavía: se manda un código de 6 dígitos a su correo y el
+                // frontend debe llamar a /api/auth/verify-2fa con ese código
+                // para completar el inicio de sesión.
+                if (Boolean.TRUE.equals(user.getTwoFactorEnabled())) {
+                    boolean enviado = twoFactorService.generarYEnviarCodigo(
+                            user, "Código de verificación - Notas Trinitario",
+                            "Ingresa este código para completar tu inicio de sesión:");
+                    if (!enviado) {
+                        return ResponseEntity.status(500).body(Map.of(
+                            "error", "No se pudo enviar el código de verificación a tu correo. "
+                                   + "Contacta a soporte si el problema persiste."
+                        ));
+                    }
+                    Map<String, Object> response = new LinkedHashMap<>();
+                    response.put("twoFactorRequired", true);
+                    response.put("userId", user.getId());
+                    // Email parcialmente oculto, solo para que el usuario confirme a qué correo llegó.
+                    response.put("emailHint", maskEmail(user.getEmail()));
+                    return ResponseEntity.ok(response);
+                }
+
                 String token = jwtUtil.generateToken(user.getId().toString());
                 String role = user.getRole() != null ? user.getRole().getName() : "USER";
-                RefreshToken refreshToken = refreshTokenService.createRefreshToken(user);
+                RefreshToken refreshToken = refreshTokenService.createRefreshToken(
+                        user, describeDevice(request), clientIp(request));
                 System.out.println("Login successful, generated token for role: " + role);
                 return ResponseEntity.ok(Map.of(
                     "token", token,
@@ -134,7 +199,7 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody User user) {
+    public ResponseEntity<?> register(@Valid @RequestBody User user, HttpServletRequest request) {
         if (user.getUsername() == null || user.getEmail() == null || user.getPassword() == null) {
             return ResponseEntity.badRequest().body(Map.of("error", "username, email and password required"));
         }
@@ -147,7 +212,8 @@ public class AuthController {
         user.setPassword(hashSHA256(user.getPassword()));
         User saved = userRepository.save(user);
         String token = jwtUtil.generateToken(saved.getId().toString());
-        RefreshToken refreshToken = refreshTokenService.createRefreshToken(saved);
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(
+                saved, describeDevice(request), clientIp(request));
         return ResponseEntity.ok(Map.of("token", token, "refreshToken", refreshToken.getToken(), "userId", saved.getId()));
     }
 
@@ -170,7 +236,7 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> body) {
+    public ResponseEntity<?> refreshToken(@RequestBody Map<String, String> body, HttpServletRequest request) {
         String refreshTokenStr = body.get("refreshToken");
         if (refreshTokenStr == null || refreshTokenStr.isEmpty()) {
             return ResponseEntity.status(401).body(Map.of("error", "Refresh token is required"));
@@ -188,19 +254,211 @@ public class AuthController {
 
         User user = refreshToken.getUser();
         String newAccessToken = jwtUtil.generateToken(user.getId().toString());
-        String newRefreshToken = jwtUtil.generateRefreshToken(user.getId().toString());
-        refreshTokenService.deleteByUser(user);
-        RefreshToken newRefreshTokenEntity = new RefreshToken();
-        newRefreshTokenEntity.setUser(user);
-        newRefreshTokenEntity.setToken(newRefreshToken);
-        newRefreshTokenEntity.setExpiresAt(LocalDateTime.now().plusDays(30));
-        refreshTokenRepository.save(newRefreshTokenEntity);
+        // IMPORTANTE: rotate() solo reemplaza ESTE refresh token puntual, no
+        // borra los de otros dispositivos (antes deleteByUser() los borraba
+        // TODOS, por lo que nunca podía haber más de una sesión activa a la
+        // vez y "Sesiones Activas" no tenía sentido).
+        RefreshToken rotated = refreshTokenService.rotate(refreshToken, describeDevice(request), clientIp(request));
 
         String role = user.getRole() != null ? user.getRole().getName() : "USER";
         return ResponseEntity.ok(Map.of(
             "token", newAccessToken,
-            "refreshToken", newRefreshToken,
+            "refreshToken", rotated.getToken(),
             "role", role
         ));
     }
+
+    /** Usuario autenticado actual (o null si no hay). Reutiliza el mismo
+     *  patrón que /me. */
+    private User currentUser() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof User u) {
+            return u;
+        }
+        return null;
+    }
+
+    /**
+     * GET /api/auth/sessions[?currentRefreshToken=...]
+     * Lista los dispositivos/sesiones activos del usuario autenticado, para
+     * la pantalla de Ajustes > Seguridad > Sesiones Activas. Si el frontend
+     * manda su propio refreshToken en currentRefreshToken, esa fila se marca
+     * con "current": true (sin exponer el valor real del token de nadie).
+     */
+    @GetMapping("/sessions")
+    public ResponseEntity<?> listSessions(@RequestParam(required = false) String currentRefreshToken) {
+        User user = currentUser();
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "No autenticado"));
+        }
+        List<RefreshToken> sessions = refreshTokenService.listActiveSessions(user.getId());
+        List<Map<String, Object>> result = sessions.stream().map(s -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", s.getId());
+            m.put("device", s.getDeviceInfo() != null ? s.getDeviceInfo() : "Dispositivo desconocido");
+            m.put("ipAddress", s.getIpAddress());
+            m.put("createdAt", s.getCreatedAt());
+            m.put("lastUsedAt", s.getLastUsedAt());
+            m.put("current", currentRefreshToken != null && currentRefreshToken.equals(s.getToken()));
+            return m;
+        }).toList();
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * DELETE /api/auth/sessions/{id}
+     * Cierra (revoca) una sesión/dispositivo puntual del usuario autenticado.
+     * Si esa sesión es la que está usando el dispositivo actual, el frontend
+     * debe además cerrar la sesión localmente (borrar sus tokens guardados).
+     */
+    @DeleteMapping("/sessions/{id}")
+    public ResponseEntity<?> revokeSession(@PathVariable Long id) {
+        User user = currentUser();
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "No autenticado"));
+        }
+        boolean revoked = refreshTokenService.revokeSession(id, user.getId());
+        if (!revoked) {
+            return ResponseEntity.status(404).body(Map.of("error", "Sesión no encontrada"));
+        }
+        return ResponseEntity.ok(Map.of("success", true));
+    }
+
+    /**
+     * POST /api/auth/accept-legal  {"type":"terms"} o {"type":"privacy"}
+     * Registra, con fecha y hora, que el usuario autenticado aceptó los
+     * Términos y Condiciones o la Política de Privacidad (botón "Aceptar"
+     * en esos modales). Antes ese botón solo cerraba la ventana sin dejar
+     * ninguna constancia de que el usuario aceptó algo.
+     */
+    @PostMapping("/accept-legal")
+    public ResponseEntity<?> acceptLegal(@RequestBody Map<String, String> body) {
+        User user = currentUser();
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "No autenticado"));
+        }
+        String type = body.get("type");
+        if ("terms".equals(type)) {
+            user.setTermsAcceptedAt(LocalDateTime.now());
+        } else if ("privacy".equals(type)) {
+            user.setPrivacyAcceptedAt(LocalDateTime.now());
+        } else {
+            return ResponseEntity.badRequest().body(Map.of("error", "type debe ser 'terms' o 'privacy'"));
+        }
+        userRepository.save(user);
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("success", true);
+        response.put("termsAcceptedAt", user.getTermsAcceptedAt());
+        response.put("privacyAcceptedAt", user.getPrivacyAcceptedAt());
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * POST /api/auth/verify-2fa  {"userId":..., "code":"123456"}
+     * Segundo paso del login cuando el usuario tiene 2FA activado: si el
+     * código es correcto, AHORA sí se entregan el JWT y el refresh token
+     * (creando la sesión, igual que un login normal).
+     */
+    @PostMapping("/verify-2fa")
+    public ResponseEntity<?> verifyTwoFactor(@RequestBody Map<String, String> body, HttpServletRequest request) {
+        Long userId;
+        try {
+            userId = Long.parseLong(body.get("userId"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "userId inválido"));
+        }
+        String code = body.get("code");
+        if (code == null || code.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Ingresa el código de verificación"));
+        }
+
+        Optional<User> userOpt = userRepository.findById(userId);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(401).body(Map.of("error", "Sesión de verificación inválida, inicia sesión de nuevo"));
+        }
+        User user = userOpt.get();
+
+        if (!twoFactorService.verificarCodigo(user, code.trim())) {
+            return ResponseEntity.status(401).body(Map.of("error", "Código incorrecto o vencido"));
+        }
+
+        String token = jwtUtil.generateToken(user.getId().toString());
+        String role = user.getRole() != null ? user.getRole().getName() : "USER";
+        RefreshToken refreshToken = refreshTokenService.createRefreshToken(
+                user, describeDevice(request), clientIp(request));
+        return ResponseEntity.ok(Map.of(
+            "token", token,
+            "refreshToken", refreshToken.getToken(),
+            "role", role
+        ));
+    }
+
+    /**
+     * POST /api/auth/2fa/enable
+     * Paso 1 para ACTIVAR 2FA desde Ajustes: manda un código de
+     * confirmación al correo del usuario autenticado. Todavía NO activa
+     * nada (eso ocurre en /2fa/enable/confirm, para comprobar que el
+     * usuario sí tiene acceso a ese correo).
+     */
+    @PostMapping("/2fa/enable")
+    public ResponseEntity<?> enableTwoFactorStart() {
+        User user = currentUser();
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "No autenticado"));
+        }
+        if (Boolean.TRUE.equals(user.getTwoFactorEnabled())) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Ya tienes la autenticación de dos factores activada"));
+        }
+        boolean enviado = twoFactorService.generarYEnviarCodigo(
+                user, "Activar autenticación de dos factores",
+                "Ingresa este código para ACTIVAR la autenticación de dos factores en tu cuenta:");
+        if (!enviado) {
+            return ResponseEntity.status(500).body(Map.of("error", "No se pudo enviar el código a tu correo"));
+        }
+        return ResponseEntity.ok(Map.of("success", true, "emailHint", maskEmail(user.getEmail())));
+    }
+
+    /**
+     * POST /api/auth/2fa/enable/confirm  {"code":"123456"}
+     * Paso 2: si el código coincide, se activa 2FA de verdad.
+     */
+    @PostMapping("/2fa/enable/confirm")
+    public ResponseEntity<?> enableTwoFactorConfirm(@RequestBody Map<String, String> body) {
+        User user = currentUser();
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "No autenticado"));
+        }
+        String code = body.get("code");
+        if (code == null || !twoFactorService.verificarCodigo(user, code.trim())) {
+            return ResponseEntity.status(401).body(Map.of("error", "Código incorrecto o vencido"));
+        }
+        user.setTwoFactorEnabled(true);
+        userRepository.save(user);
+        return ResponseEntity.ok(Map.of("success", true, "twoFactorEnabled", true));
+    }
+
+    /**
+     * POST /api/auth/2fa/disable  {"password":"..."}
+     * Desactiva 2FA. Pide la contraseña actual (no un código de correo) para
+     * evitar que alguien con la sesión abierta en un dispositivo prestado
+     * pueda quitar la protección sin saber la contraseña.
+     */
+    @PostMapping("/2fa/disable")
+    public ResponseEntity<?> disableTwoFactor(@RequestBody Map<String, String> body) {
+        User user = currentUser();
+        if (user == null) {
+            return ResponseEntity.status(401).body(Map.of("error", "No autenticado"));
+        }
+        String password = body.get("password");
+        if (password == null || !hashSHA256(password).equalsIgnoreCase(nvl(user.getPassword()))) {
+            return ResponseEntity.status(401).body(Map.of("error", "Contraseña incorrecta"));
+        }
+        user.setTwoFactorEnabled(false);
+        user.setTemp2faCode(null);
+        user.setTemp2faExpiry(null);
+        userRepository.save(user);
+        return ResponseEntity.ok(Map.of("success", true, "twoFactorEnabled", false));
+    }
+
+    private String nvl(String s) { return s != null ? s : ""; }
 }

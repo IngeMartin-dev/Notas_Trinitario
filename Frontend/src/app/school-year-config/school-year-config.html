@@ -131,45 +131,107 @@
   </div>
 }
 
-<!-- Pantalla completa: organizar salones tras adelantar año -->
-@if (pendientes.length > 0) {
+<!-- Asistente paso a paso: organizar salones de Grado 1º a Grado 11º -->
+@if (pendientes.length > 0 || newStudentsGrade1.length > 0) {
   <div class="syc-fullscreen-overlay">
     <div class="syc-fullscreen">
       <div class="syc-fullscreen-header">
-        <h2><span class="material-icons">groups</span> Organizar salones — {{ pendientes.length }} estudiante(s) pendiente(s)</h2>
-        <p class="syc-hint">
-          Marca a cada estudiante como salón A o B, separados por el grado al que fueron promovidos.
-          Los que no marques quedarán sin salón asignado hasta que vuelvas a esta pantalla.
-        </p>
+        <h2><span class="material-icons">groups</span> Organizar Grado {{ currentWizardGradeNumber }}º</h2>
+        <div class="syc-wizard-progress">
+          @for (g of wizardGradeNumbers; track g) {
+            <span class="syc-wizard-dot" [class.active]="g === currentWizardGradeNumber" [class.done]="g < currentWizardGradeNumber">{{ g }}</span>
+          }
+        </div>
+        @if (currentWizardGradeNumber === 1) {
+          <p class="syc-hint">Grado 1º no recibe estudiantes promovidos: registra aquí a los estudiantes NUEVOS que ingresan este año y asígnalos a su salón.</p>
+        } @else {
+          <p class="syc-hint">
+            Marca a cada estudiante promovido a Grado {{ currentWizardGradeNumber }}º como salón A o B.
+            Los que no marques quedarán pendientes para más adelante.
+          </p>
+        }
       </div>
 
       <div class="syc-fullscreen-body">
-        @for (grupo of pendientesPorGrado; track grupo.grade) {
-          <div class="syc-grade-group">
-            <div class="syc-grade-group-header">
-              <strong>{{ grupo.grade }}</strong>
-              <span class="syc-count-badge">A: {{ countAsignados(grupo.grade, 'A') }} · B: {{ countAsignados(grupo.grade, 'B') }}</span>
+        @if (currentWizardGradeNumber === 1) {
+          <!-- Paso especial: alta de estudiantes nuevos de Grado 1 -->
+          <div class="syc-new-student-form">
+            <input type="text" placeholder="Nombre" [(ngModel)]="newStudentForm.name">
+            <input type="text" placeholder="Apellido" [(ngModel)]="newStudentForm.surname">
+            <input type="text" placeholder="Documento de identidad" [(ngModel)]="newStudentForm.documentNumber">
+            <div class="syc-salon-toggle">
+              <button type="button" class="salon-btn" [class.active]="newStudentForm.classGroup === 'A'" (click)="newStudentForm.classGroup = 'A'">A</button>
+              <button type="button" class="salon-btn" [class.active]="newStudentForm.classGroup === 'B'" (click)="newStudentForm.classGroup = 'B'">B</button>
             </div>
-            @for (est of grupo.estudiantes; track est.studentId) {
-              <div class="syc-student-row">
-                <span class="syc-student-name">{{ est.surname }} {{ est.name }}</span>
-                <div class="syc-salon-toggle">
-                  <button type="button" class="salon-btn" [class.active]="asignaciones[est.studentId] === 'A'"
-                          (click)="toggleAsignacion(est.studentId, 'A')">A</button>
-                  <button type="button" class="salon-btn" [class.active]="asignaciones[est.studentId] === 'B'"
-                          (click)="toggleAsignacion(est.studentId, 'B')">B</button>
-                </div>
-              </div>
-            }
+            <button class="syc-save-btn" [disabled]="addingStudent" (click)="agregarEstudianteNuevo()">
+              <span class="material-icons">person_add</span>
+              @if (addingStudent) { Agregando... } @else { Agregar }
+            </button>
           </div>
+          @if (addStudentError) {
+            <p class="syc-message">{{ addStudentError }}</p>
+          }
+
+          @if (newStudentsGrade1.length === 0) {
+            <p class="syc-empty">Todavía no has agregado estudiantes nuevos a Grado 1º.</p>
+          } @else {
+            <div class="syc-grade-group">
+              <div class="syc-grade-group-header">
+                <strong>Grado 1º — nuevos ingresos</strong>
+                <span class="syc-count-badge">
+                  A: {{ countNuevosPorSalon('A') }} · B: {{ countNuevosPorSalon('B') }}
+                </span>
+              </div>
+              @for (est of newStudentsGrade1; track est.documentNumber) {
+                <div class="syc-student-row">
+                  <span class="syc-student-name">{{ est.surname }} {{ est.name }}</span>
+                  <span class="syc-count-badge">Salón {{ est.classGroup }}</span>
+                </div>
+              }
+            </div>
+          }
+        } @else {
+          <!-- Pasos Grado 2 a 11: organizar promovidos -->
+          @if (pendientesDelPasoActual.length === 0) {
+            <p class="syc-empty">No hay estudiantes pendientes de organizar en Grado {{ currentWizardGradeNumber }}º.</p>
+          } @else {
+            <div class="syc-grade-group">
+              <div class="syc-grade-group-header">
+                <strong>Grado {{ currentWizardGradeNumber }}º</strong>
+                <span class="syc-count-badge">A: {{ countAsignadosPaso('A') }} · B: {{ countAsignadosPaso('B') }}</span>
+              </div>
+              @for (est of pendientesDelPasoActual; track est.studentId) {
+                <div class="syc-student-row">
+                  <span class="syc-student-name">{{ est.surname }} {{ est.name }}</span>
+                  <div class="syc-salon-toggle">
+                    <button type="button" class="salon-btn" [class.active]="asignaciones[est.studentId] === 'A'"
+                            (click)="toggleAsignacion(est.studentId, 'A')">A</button>
+                    <button type="button" class="salon-btn" [class.active]="asignaciones[est.studentId] === 'B'"
+                            (click)="toggleAsignacion(est.studentId, 'B')">B</button>
+                  </div>
+                </div>
+              }
+            </div>
+          }
         }
       </div>
 
       <div class="syc-fullscreen-footer">
         <button class="syc-cancel-btn" (click)="cerrarOrganizacionPorAhora()">Continuar después</button>
-        <button class="syc-save-btn" [disabled]="savingClassrooms" (click)="guardarOrganizacion()">
-          @if (savingClassrooms) { Guardando... } @else { Guardar organización de salones }
-        </button>
+        <div class="syc-wizard-nav">
+          <button class="syc-cancel-btn" [disabled]="isFirstWizardStep" (click)="pasoAnteriorWizard()">
+            <span class="material-icons">arrow_back</span> Anterior
+          </button>
+          <button class="syc-save-btn" [disabled]="savingClassrooms" (click)="siguientePasoWizard()">
+            @if (savingClassrooms) {
+              Guardando...
+            } @else if (isLastWizardStep) {
+              <span class="material-icons">check</span> Finalizar
+            } @else {
+              Siguiente <span class="material-icons">arrow_forward</span>
+            }
+          </button>
+        </div>
       </div>
     </div>
   </div>

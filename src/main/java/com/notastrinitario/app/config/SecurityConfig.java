@@ -64,7 +64,7 @@ public class SecurityConfig {
                                                 .permitAll()
                                                 // API pública
                                                 .requestMatchers("/api/auth/login", "/api/auth/register",
-                                                        "/api/auth/me", "/api/auth/refresh")
+                                                        "/api/auth/me", "/api/auth/refresh", "/api/auth/verify-2fa")
                                                 .permitAll()
                                                 // API de períodos
                                                 .requestMatchers("/api/periods/**").permitAll()

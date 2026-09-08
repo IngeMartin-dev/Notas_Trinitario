@@ -8,11 +8,9 @@ body {padding:0; margin:0; text-align:center; background-color:#777}
 .page {margin:5px 0}
 .page svg {background-color:#fff}
 
-/* Ajuste SOLO para exportación a PDF (no afecta la vista en pantalla):
+/* Ajuste SOLO para exportacion a PDF (no afecta la vista en pantalla):
    el margen de 5px entre paginas es util para separarlas visualmente en
-   el navegador, pero desalinearia el corte de pagina en el PDF (que usa
-   una altura fija de 1344px por hoja). En impresion se quita ese margen
-   y se fuerza el salto de pagina justo al final de cada .page. */
+   el navegador, pero desalinearia el corte de pagina en el PDF. */
 @media print {
   body { background-color:#fff; margin:0; padding:0; }
   html { margin:0; padding:0; }

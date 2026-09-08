@@ -37,6 +37,17 @@ export class SchoolYearConfig implements OnInit {
   asignaciones: { [studentId: number]: 'A' | 'B' } = {};
   savingClassrooms = false;
 
+  // Asistente paso a paso "Organizar salones" (Grado 1 a Grado 11).
+  // Grado 1 es especial: ahí no llega nadie promovido (no existe "Grado 0"),
+  // así que en vez de organizar pendientes se registran los estudiantes
+  // NUEVOS que ingresan a Grado 1 este año.
+  wizardGradeNumbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11];
+  currentWizardIndex = 0;
+  newStudentsGrade1: { name: string; surname: string; documentNumber: string; classGroup: 'A' | 'B' }[] = [];
+  newStudentForm = { name: '', surname: '', documentNumber: '', classGroup: 'A' as 'A' | 'B' };
+  addingStudent = false;
+  addStudentError = '';
+
   // Usuarios sin rol
   usuariosSinRol: UsuarioSinRol[] = [];
   roles: RoleDto[] = [];
@@ -122,6 +133,8 @@ export class SchoolYearConfig implements OnInit {
         this.advanceMessage = `${res.estudiantesPromovidos} estudiante(s) promovido(s), ${res.estudiantesGraduados} graduado(s) de Grado 11º.`;
         this.pendientes = res.pendientesDeOrganizar;
         this.asignaciones = {};
+        this.newStudentsGrade1 = [];
+        this.currentWizardIndex = 0; // el asistente siempre arranca en Grado 1
         this.loadConfig();
       },
       error: () => {
@@ -184,21 +197,115 @@ export class SchoolYearConfig implements OnInit {
     this.asignaciones[studentId] = salon;
   }
 
-  guardarOrganizacion() {
-    if (Object.keys(this.asignaciones).length === 0) return;
+  // ── Asistente paso a paso: Grado 1 → Grado 11 ────────────────────────
+  get currentWizardGradeNumber(): number {
+    return this.wizardGradeNumbers[this.currentWizardIndex];
+  }
+
+  get isFirstWizardStep(): boolean {
+    return this.currentWizardIndex === 0;
+  }
+
+  get isLastWizardStep(): boolean {
+    return this.currentWizardIndex === this.wizardGradeNumbers.length - 1;
+  }
+
+  /** Pendientes (estudiantes YA promovidos que hay que organizar) del
+   *  grado que se está mostrando en este paso del asistente. Vacío para el
+   *  paso de Grado 1 (ahí no hay promovidos, ver newStudentsGrade1). */
+  get pendientesDelPasoActual(): PendienteOrganizar[] {
+    const gradoTexto = `Grado ${this.currentWizardGradeNumber}º`;
+    return this.pendientes.filter(p => p.grade === gradoTexto);
+  }
+
+  countAsignadosPaso(salon: 'A' | 'B'): number {
+    return this.pendientesDelPasoActual.filter(p => this.asignaciones[p.studentId] === salon).length;
+  }
+
+  // -- Paso "Grado 1": alta de estudiantes nuevos --
+  agregarEstudianteNuevo() {
+    this.addStudentError = '';
+    if (!this.newStudentForm.name.trim() || !this.newStudentForm.surname.trim()) {
+      this.addStudentError = 'Nombre y apellido son obligatorios.';
+      return;
+    }
+    this.addingStudent = true;
+    this.service.createStudent({
+      name: this.newStudentForm.name.trim(),
+      surname: this.newStudentForm.surname.trim(),
+      documentNumber: this.newStudentForm.documentNumber.trim(),
+      grade: 'Grado 1º',
+      classGroup: this.newStudentForm.classGroup,
+      active: true
+    }).subscribe({
+      next: () => {
+        this.addingStudent = false;
+        this.newStudentsGrade1.push({ ...this.newStudentForm });
+        this.newStudentForm = { name: '', surname: '', documentNumber: '', classGroup: 'A' };
+      },
+      error: (err) => {
+        this.addingStudent = false;
+        this.addStudentError = err?.error?.error || 'No se pudo registrar el estudiante.';
+      }
+    });
+  }
+
+  countNuevosPorSalon(salon: 'A' | 'B'): number {
+    return this.newStudentsGrade1.filter(e => e.classGroup === salon).length;
+  }
+
+  // -- Navegación del asistente --
+  siguientePasoWizard() {
+    if (this.currentWizardGradeNumber === 1) {
+      // Nada que guardar en el backend aparte de lo ya creado; solo avanzar.
+      this.avanzarIndiceWizard();
+      return;
+    }
+
+    const pendientesPaso = this.pendientesDelPasoActual;
+    const asignacionesPaso: { [studentId: number]: 'A' | 'B' } = {};
+    for (const p of pendientesPaso) {
+      if (this.asignaciones[p.studentId]) {
+        asignacionesPaso[p.studentId] = this.asignaciones[p.studentId];
+      }
+    }
+
+    if (Object.keys(asignacionesPaso).length === 0) {
+      // Nadie marcado en este grado todavía: se puede avanzar igual (se
+      // podrá volver más tarde, quedan como pendientes).
+      this.avanzarIndiceWizard();
+      return;
+    }
+
     this.savingClassrooms = true;
-    this.service.assignClassrooms(this.asignaciones).subscribe({
-      next: (res) => {
+    this.service.assignClassrooms(asignacionesPaso).subscribe({
+      next: () => {
         this.savingClassrooms = false;
-        this.advanceMessage = `${res.asignados} estudiante(s) organizado(s) en su nuevo salón.`;
         this.loadPendientes();
-        this.loadConfig();
+        this.avanzarIndiceWizard();
       },
       error: () => {
         this.savingClassrooms = false;
-        this.advanceMessage = 'No se pudo guardar la organización de salones.';
+        this.advanceMessage = 'No se pudo guardar la organización de este grado.';
       }
     });
+  }
+
+  private avanzarIndiceWizard() {
+    if (this.isLastWizardStep) {
+      this.advanceMessage = 'Organización de salones completada de Grado 1º a Grado 11º.';
+      this.pendientes = [];
+      this.currentWizardIndex = 0;
+      this.loadConfig();
+    } else {
+      this.currentWizardIndex++;
+    }
+  }
+
+  pasoAnteriorWizard() {
+    if (!this.isFirstWizardStep) {
+      this.currentWizardIndex--;
+    }
   }
 
   // ── Usuarios sin rol ──────────────────────────────────────────────

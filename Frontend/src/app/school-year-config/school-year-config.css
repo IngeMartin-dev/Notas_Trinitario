@@ -386,8 +386,66 @@
 
 .syc-fullscreen-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   gap: 10px;
   padding: 18px 28px;
   border-top: 1px solid var(--border);
+}
+
+.syc-wizard-nav {
+  display: flex;
+  gap: 10px;
+}
+
+/* Indicador de progreso Grado 1 -> Grado 11 */
+.syc-wizard-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+
+.syc-wizard-dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-4);
+}
+
+.syc-wizard-dot.done {
+  background: var(--success, #2e7d32);
+  border-color: var(--success, #2e7d32);
+  color: #fff;
+}
+
+.syc-wizard-dot.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  transform: scale(1.15);
+}
+
+/* Formulario de alta de estudiantes nuevos (paso Grado 1) */
+.syc-new-student-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.syc-new-student-form input {
+  flex: 1 1 160px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.85rem;
 }

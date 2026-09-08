@@ -49,9 +49,68 @@ export class Settings implements OnInit, OnDestroy {
   passwordChangeSuccess = signal(false);
   isChangingPassword = signal(false);
   
+  // Settings - Ayuda (FAQ / Soporte)
+  showFaqModal = signal(false);
+  showSupportModal = signal(false);
+  expandedFaqIndex = signal<number | null>(null);
+  faqItems: { question: string; answer: string }[] = [
+    {
+      question: '¿Cómo veo las calificaciones de mi hijo(a)?',
+      answer: 'Ingresa a la sección "Calificaciones" desde el menú principal. Allí verás las notas por materia y periodo tal como las registraron los profesores.'
+    },
+    {
+      question: '¿Cómo descargo el boletín de calificaciones?',
+      answer: 'En la sección de Boletines/Consolidados, selecciona el periodo y el estudiante, y usa el botón de descarga para obtener el PDF en tamaño carta.'
+    },
+    {
+      question: '¿Olvidé mi contraseña, qué hago?',
+      answer: 'Desde la pantalla de inicio de sesión selecciona "¿Olvidaste tu contraseña?". Si no tienes esa opción disponible, contacta a soporte para que un administrador te ayude a restablecerla.'
+    },
+    {
+      question: '¿Cómo cambio mi contraseña?',
+      answer: 'Ve a Ajustes > Seguridad > Cambiar Contraseña, ingresa tu contraseña actual y la nueva contraseña dos veces para confirmarla.'
+    },
+    {
+      question: '¿Cómo hablo con el profesor o el director de grupo de mi hijo(a)?',
+      answer: 'Usa la sección de Chat/Mensajes: allí encontrarás a los profesores del grado correspondiente y a los administradores del colegio para escribirles directamente.'
+    },
+    {
+      question: '¿Por qué no veo algunas materias en el boletín?',
+      answer: 'El boletín muestra las materias asignadas al grado del estudiante para el periodo activo. Si crees que falta alguna, contacta a soporte o al director de grupo.'
+    },
+    {
+      question: '¿Puedo usar la aplicación desde el celular?',
+      answer: 'Sí, la plataforma es responsiva y puedes usarla desde el navegador de tu celular sin instalar nada adicional.'
+    },
+    {
+      question: '¿Cómo cierro sesión en otro dispositivo que ya no uso?',
+      answer: 'Ve a Ajustes > Seguridad > Sesiones Activas. Allí puedes ver todos los dispositivos donde tu cuenta tiene sesión iniciada y cerrar la que quieras.'
+    },
+  ];
+
   // Settings - Legal
   showTermsModal = signal(false);
   showPrivacyModal = signal(false);
+
+  // Settings - Autenticación de Dos Factores (2FA)
+  twoFactorEnabled = signal(false);
+  showTwoFactorEnableModal = signal(false); // paso 1: pide activar -> ya se mandó el código
+  showTwoFactorDisableModal = signal(false); // pide contraseña para desactivar
+  twoFactorCodeInput = signal('');
+  twoFactorPasswordInput = signal('');
+  twoFactorEmailHint = signal('');
+  twoFactorError = signal<string | null>(null);
+  twoFactorBusy = signal(false);
+
+  // Settings - Sesiones Activas
+  showSessionsModal = signal(false);
+  loadingSessions = signal(false);
+  sessionsError = signal<string | null>(null);
+  activeSessions = signal<Array<{
+    id: number; device: string; ipAddress: string | null;
+    createdAt: string; lastUsedAt: string; current: boolean;
+  }>>([]);
+  revokingSessionId = signal<number | null>(null);
   
   // Edit profile fields
   isEditingProfile = signal(false);
@@ -295,18 +354,48 @@ export class Settings implements OnInit, OnDestroy {
   }
 
   // ========== PRIVACY SETTINGS ==========
-  downloadMyData() {
-    const userData = {
-      profile: this.currentUser(),
-      notificationSettings: {
-        push: this.pushNotificationsEnabled(),
-        email: this.emailNotificationsEnabled(),
-        messages: this.messageNotificationsEnabled()
-      },
-      language: this.selectedLanguage(),
-      exportDate: new Date().toISOString()
-    };
+  downloadingData = signal(false);
 
+  downloadMyData() {
+    this.downloadingData.set(true);
+    // Antes esto solo exportaba el perfil y las preferencias locales
+    // ("solo nombres"). Ahora se pide al backend la exportación COMPLETA
+    // según el rol (notas y materias de los hijos si es padre, materias
+    // asignadas si es profesor/director de grupo).
+    this.http.get<any>(`${this.authService.API_BASE_URL}/export/my-data`).subscribe({
+      next: (fullData) => {
+        this.triggerDataDownload({
+          ...fullData,
+          notificationSettings: {
+            push: this.pushNotificationsEnabled(),
+            email: this.emailNotificationsEnabled(),
+            messages: this.messageNotificationsEnabled()
+          },
+          language: this.selectedLanguage()
+        });
+        this.downloadingData.set(false);
+      },
+      error: (err) => {
+        console.error('Error exportando datos completos, se descarga solo el perfil:', err);
+        // Si por algún motivo el backend falla, no dejamos al usuario sin
+        // nada: al menos exportamos lo que ya teníamos disponible localmente.
+        this.triggerDataDownload({
+          profile: this.currentUser(),
+          notificationSettings: {
+            push: this.pushNotificationsEnabled(),
+            email: this.emailNotificationsEnabled(),
+            messages: this.messageNotificationsEnabled()
+          },
+          language: this.selectedLanguage(),
+          exportDate: new Date().toISOString(),
+          warning: 'No se pudo obtener la exportación completa del servidor; este archivo solo contiene el perfil.'
+        });
+        this.downloadingData.set(false);
+      }
+    });
+  }
+
+  private triggerDataDownload(userData: any) {
     const dataStr = JSON.stringify(userData, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -317,10 +406,168 @@ export class Settings implements OnInit, OnDestroy {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-    console.log('Data downloaded');
+  }
+
+  // ========== AUTENTICACIÓN DE DOS FACTORES (2FA) ==========
+  /** Se llama cuando el usuario mueve el switch. */
+  onToggleTwoFactor() {
+    if (this.twoFactorEnabled()) {
+      // Ya estaba activado y lo quiere apagar: pedir contraseña.
+      this.twoFactorEnabled.set(true); // revertir visualmente hasta confirmar
+      this.twoFactorError.set(null);
+      this.twoFactorPasswordInput.set('');
+      this.showTwoFactorDisableModal.set(true);
+    } else {
+      // Lo quiere activar: mandar el código y pedirlo.
+      this.twoFactorError.set(null);
+      this.twoFactorBusy.set(true);
+      this.http.post<any>(`${this.authService.API_BASE_URL}/auth/2fa/enable`, {}).subscribe({
+        next: (res) => {
+          this.twoFactorBusy.set(false);
+          this.twoFactorEmailHint.set(res.emailHint || 'tu correo registrado');
+          this.twoFactorCodeInput.set('');
+          this.showTwoFactorEnableModal.set(true);
+        },
+        error: (err) => {
+          this.twoFactorBusy.set(false);
+          console.error('Error iniciando activación de 2FA:', err);
+          this.twoFactorEnabled.set(false); // no se activó
+        }
+      });
+    }
+  }
+
+  confirmEnableTwoFactor() {
+    if (!this.twoFactorCodeInput().trim()) {
+      this.twoFactorError.set('Ingresa el código que llegó a tu correo');
+      return;
+    }
+    this.twoFactorBusy.set(true);
+    this.twoFactorError.set(null);
+    this.http.post<any>(`${this.authService.API_BASE_URL}/auth/2fa/enable/confirm`, {
+      code: this.twoFactorCodeInput().trim()
+    }).subscribe({
+      next: () => {
+        this.twoFactorBusy.set(false);
+        this.twoFactorEnabled.set(true);
+        this.showTwoFactorEnableModal.set(false);
+      },
+      error: (err) => {
+        this.twoFactorBusy.set(false);
+        this.twoFactorError.set(err.error?.error || 'Código incorrecto o vencido');
+      }
+    });
+  }
+
+  cancelEnableTwoFactor() {
+    this.showTwoFactorEnableModal.set(false);
+    this.twoFactorEnabled.set(false);
+  }
+
+  confirmDisableTwoFactor() {
+    if (!this.twoFactorPasswordInput()) {
+      this.twoFactorError.set('Ingresa tu contraseña actual');
+      return;
+    }
+    this.twoFactorBusy.set(true);
+    this.twoFactorError.set(null);
+    this.http.post<any>(`${this.authService.API_BASE_URL}/auth/2fa/disable`, {
+      password: this.twoFactorPasswordInput()
+    }).subscribe({
+      next: () => {
+        this.twoFactorBusy.set(false);
+        this.twoFactorEnabled.set(false);
+        this.showTwoFactorDisableModal.set(false);
+      },
+      error: (err) => {
+        this.twoFactorBusy.set(false);
+        this.twoFactorError.set(err.error?.error || 'Contraseña incorrecta');
+      }
+    });
+  }
+
+  cancelDisableTwoFactor() {
+    this.showTwoFactorDisableModal.set(false);
+    this.twoFactorEnabled.set(true);
+  }
+
+  // ========== SESIONES ACTIVAS ==========
+  openActiveSessionsModal() {
+    this.showSessionsModal.set(true);
+    this.loadActiveSessions();
+  }
+
+  closeActiveSessionsModal() {
+    this.showSessionsModal.set(false);
+  }
+
+  loadActiveSessions() {
+    this.loadingSessions.set(true);
+    this.sessionsError.set(null);
+    const myRefreshToken = localStorage.getItem('refreshToken') || '';
+    const params = myRefreshToken ? `?currentRefreshToken=${encodeURIComponent(myRefreshToken)}` : '';
+    this.http.get<any[]>(`${this.authService.API_BASE_URL}/auth/sessions${params}`).subscribe({
+      next: (sessions) => {
+        this.activeSessions.set(sessions || []);
+        this.loadingSessions.set(false);
+      },
+      error: (err) => {
+        console.error('Error loading active sessions:', err);
+        this.sessionsError.set('No se pudieron cargar las sesiones activas. Intenta de nuevo.');
+        this.loadingSessions.set(false);
+      }
+    });
+  }
+
+  async revokeSession(sessionId: number, isCurrent: boolean) {
+    if (isCurrent) {
+      const confirmed = await this.dialogService.confirm(
+        'Esta es tu sesión actual. Si la cierras, se cerrará tu sesión en este dispositivo. ¿Deseas continuar?',
+        'Cerrar sesión actual'
+      );
+      if (!confirmed) return;
+    }
+    this.revokingSessionId.set(sessionId);
+    this.http.delete(`${this.authService.API_BASE_URL}/auth/sessions/${sessionId}`).subscribe({
+      next: () => {
+        this.revokingSessionId.set(null);
+        if (isCurrent) {
+          this.closeActiveSessionsModal();
+          this.logout();
+          return;
+        }
+        this.activeSessions.update(list => list.filter(s => s.id !== sessionId));
+      },
+      error: (err) => {
+        console.error('Error revoking session:', err);
+        this.revokingSessionId.set(null);
+        this.sessionsError.set('No se pudo cerrar esa sesión. Intenta de nuevo.');
+      }
+    });
   }
 
   // ========== HELP & SUPPORT ==========
+  openFaqModal() {
+    this.expandedFaqIndex.set(null);
+    this.showFaqModal.set(true);
+  }
+
+  closeFaqModal() {
+    this.showFaqModal.set(false);
+  }
+
+  toggleFaq(index: number) {
+    this.expandedFaqIndex.set(this.expandedFaqIndex() === index ? null : index);
+  }
+
+  openSupportModal() {
+    this.showSupportModal.set(true);
+  }
+
+  closeSupportModal() {
+    this.showSupportModal.set(false);
+  }
+
   contactSupport() {
     const subject = encodeURIComponent('Contacto desde Notas Trinitario');
     const body = encodeURIComponent(`\n\n---\nUsuario: ${this.currentUser()?.name || 'No identificado'}\nEmail: ${this.currentUser()?.email || 'No registrado'}`);
@@ -333,10 +580,20 @@ export class Settings implements OnInit, OnDestroy {
       'Comentarios',
       'Escribe aquí tus comentarios...'
     );
-    if (feedback) {
-      console.log('Feedback enviado:', feedback);
-      await this.dialogService.alert('¡Gracias por tus comentarios! Los hemos recibido.', 'Comentarios enviados');
-    }
+    if (!feedback || !feedback.trim()) return;
+
+    this.http.post(`${this.authService.API_BASE_URL}/feedback`, { message: feedback.trim() }).subscribe({
+      next: async () => {
+        await this.dialogService.alert('¡Gracias por tus comentarios! Los hemos recibido.', 'Comentarios enviados');
+      },
+      error: async (err) => {
+        console.error('Error enviando comentarios:', err);
+        await this.dialogService.alert(
+          'No pudimos enviar tu comentario en este momento. Por favor intenta de nuevo más tarde.',
+          'Error'
+        );
+      }
+    });
   }
 
   openTerms() {
@@ -347,6 +604,18 @@ export class Settings implements OnInit, OnDestroy {
     this.showTermsModal.set(false);
   }
 
+  /** Botón "Aceptar" del modal de Términos: además de cerrar, deja
+   *  constancia (con fecha) de que el usuario los aceptó. */
+  acceptTerms() {
+    this.http.post(`${this.authService.API_BASE_URL}/auth/accept-legal`, { type: 'terms' }).subscribe({
+      next: () => this.closeTermsModal(),
+      error: (err) => {
+        console.error('Error registrando aceptación de términos:', err);
+        this.closeTermsModal(); // no bloqueamos al usuario si falla el registro
+      }
+    });
+  }
+
   openPrivacyPolicy() {
     this.showPrivacyModal.set(true);
   }
@@ -355,12 +624,24 @@ export class Settings implements OnInit, OnDestroy {
     this.showPrivacyModal.set(false);
   }
 
+  /** Botón "Aceptar" del modal de Política de Privacidad: idem acceptTerms(). */
+  acceptPrivacy() {
+    this.http.post(`${this.authService.API_BASE_URL}/auth/accept-legal`, { type: 'privacy' }).subscribe({
+      next: () => this.closePrivacyModal(),
+      error: (err) => {
+        console.error('Error registrando aceptación de privacidad:', err);
+        this.closePrivacyModal();
+      }
+    });
+  }
+
   loadCurrentUser() {
     if (this.authService.isAuthenticated()) {
       this.authService.getCurrentUser().subscribe({
         next: (user) => {
           console.log('Settings - User loaded:', user);
           this.currentUser.set(user);
+          this.twoFactorEnabled.set(!!user?.twoFactorEnabled);
         },
         error: (err) => {
           console.error('Settings - Failed to load user:', err);

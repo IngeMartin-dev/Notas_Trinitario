@@ -52,7 +52,7 @@ public class AppProperties {
 
     public static class Ai {
         private String mistralApiKey;
-        private String mistralModel = "mistral-large-2512";
+        private String mistralModel = "mistral-small-latest";
         private String mistralUrl = "https://api.mistral.ai/v1/chat/completions";
 
         public String getMistralApiKey() { return mistralApiKey; }

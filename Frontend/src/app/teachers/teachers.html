@@ -6,7 +6,14 @@
     </button>
   </div>
 
-  @if (!loading) {
+  @if (loading) {
+    <!-- Spinner LOCAL en el área de la lista, en vez de una pantalla
+         blanca de carga que tapa todo (encabezado y botón incluidos). -->
+    <div class="teachers-loading">
+      <div class="spinner"></div>
+      <p>Cargando profesores...</p>
+    </div>
+  } @else {
     <div class="search-bar">
       <span class="material-icons search-icon">search</span>
       <input type="text" id="teacher-search" name="teacherSearch" [(ngModel)]="searchTerm" placeholder="Buscar profesor..." autocomplete="off" />
@@ -313,12 +320,5 @@
       </div>
       <button class="notification-close" (click)="showNotification = false">✕</button>
     </div>
-  </div>
-}
-
-@if (loading) {
-  <div class="loading">
-    <div class="spinner"></div>
-    <p>Cargando...</p>
   </div>
 }

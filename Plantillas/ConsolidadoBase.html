@@ -102,6 +102,15 @@ th.col--vacia, td.col--vacia { display: none; }
   position: absolute; bottom: 8px; left: 26px; right: 26px;
   display: flex; justify-content: space-between; font-size: 8px; color: #333;
 }
+
+.leyenda-materias {
+  margin-top: 6px;
+  font-size: 7px;
+  line-height: 1.5;
+  color: #333;
+  padding-right: 4px;
+}
+.leyenda-materias b { font-weight: 700; }
 </style>
 </head>
 <body data-doc="consolidado">
@@ -1078,6 +1087,10 @@ th.col--vacia, td.col--vacia { display: none; }
       </tr>
     </tbody>
   </table>
+
+  <div class="leyenda-materias">
+    <b>Convenciones de materias:</b> {{LEYENDA_MATERIAS}}
+  </div>
 
   <div class="pie">
     <span>{{CIUDAD}} — generado el {{FECHA_GENERACION}}</span>

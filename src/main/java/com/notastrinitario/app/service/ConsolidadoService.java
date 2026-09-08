@@ -1,6 +1,9 @@
 package com.notastrinitario.app.service;
 
+import com.notastrinitario.app.entity.HomeroomAssignment;
 import com.notastrinitario.app.entity.Student;
+import com.notastrinitario.app.entity.User;
+import com.notastrinitario.app.repository.HomeroomAssignmentRepository;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
@@ -48,10 +51,13 @@ public class ConsolidadoService {
 
     private final SubjectGradeService subjectGradeService;
     private final BoletinService boletinService; // reutiliza el wrapper de Playwright
+    private final HomeroomAssignmentRepository homeroomAssignmentRepository;
 
-    public ConsolidadoService(SubjectGradeService subjectGradeService, BoletinService boletinService) {
+    public ConsolidadoService(SubjectGradeService subjectGradeService, BoletinService boletinService,
+                               HomeroomAssignmentRepository homeroomAssignmentRepository) {
         this.subjectGradeService = subjectGradeService;
         this.boletinService = boletinService;
+        this.homeroomAssignmentRepository = homeroomAssignmentRepository;
     }
 
     // ─────────────────────────────────────────────────────────────────
@@ -114,6 +120,7 @@ public class ConsolidadoService {
         String fecha = java.time.LocalDate.now().toString();
         String director = obtenerDirectorGrupoODefault(grade, classroom);
         String anio = String.valueOf(java.time.Year.now().getValue());
+        String leyendaMaterias = construirLeyendaMaterias(materias);
 
         int totalEstudiantes = estudiantes.size();
         int totalPaginas = Math.max(1, (int) Math.ceil(totalEstudiantes / (double) ESTUDIANTES_POR_PAGINA));
@@ -137,7 +144,8 @@ public class ConsolidadoService {
                     .replace("{{PERIODO}}", String.valueOf(period))
                     .replace("{{DIRECTOR_GRUPO}}", escapeHtml(director))
                     .replace("{{CIUDAD}}", "CARTAGENA")
-                    .replace("{{FECHA_GENERACION}}", fecha);
+                    .replace("{{FECHA_GENERACION}}", fecha)
+                    .replace("{{LEYENDA_MATERIAS}}", leyendaMaterias);
 
             // ── Encabezados + colapso de columnas de materia (22 cupos) ──
             // Ojo: {{COL_c_CLASE_VACIA}} aparece en el <th> de esa columna
@@ -250,6 +258,22 @@ public class ConsolidadoService {
         return s.replace(".", ",");
     }
 
+    /** Fila "Convenciones de materias" al pie del consolidado: mapea cada
+     *  sigla de columna (calculada por abreviarMateria, a partir del
+     *  NOMBRE real de la materia, nunca de su código interno) con el
+     *  nombre completo, para que quien lea el PDF sepa qué significa cada
+     *  columna sin tener que adivinar. */
+    private String construirLeyendaMaterias(List<String> materias) {
+        StringBuilder sb = new StringBuilder();
+        for (String nombre : materias) {
+            if (nombre == null || nombre.isBlank()) continue;
+            if (sb.length() > 0) sb.append("&nbsp;&nbsp;·&nbsp;&nbsp;");
+            sb.append("<b>").append(escapeHtml(abreviarMateria(nombre))).append("</b>")
+              .append(" = ").append(escapeHtml(nombre));
+        }
+        return sb.toString();
+    }
+
     /** Sigla corta para el encabezado de columna, misma lógica que el
      *  ReporteController original (abreviarMateria), reutilizada aquí. */
     private String abreviarMateria(String nombre) {
@@ -267,10 +291,20 @@ public class ConsolidadoService {
         return sb.length() > 0 ? sb.toString() : nombre.substring(0, Math.min(5, nombre.length())).toUpperCase();
     }
 
-    /** si existe un catálogo de director de grupo por grado/salón,
-     *  reemplazar este método por esa consulta real. Se deja aislado a
-     *  propósito para no acoplar este servicio a esa fuente todavía. */
+    /** Director de grupo asignado a este grado/salón (ver "Directores de
+     *  Grupo" en el sidebar / HomeroomAssignmentController). Si nadie ha
+     *  sido asignado todavía, se muestra "Por asignar" en vez de fallar. */
     private String obtenerDirectorGrupoODefault(String grade, String classroom) {
+        Optional<HomeroomAssignment> asignacion = homeroomAssignmentRepository.findByGradeAndClassroom(grade, classroom);
+        if (asignacion.isPresent()) {
+            User director = asignacion.get().getUser();
+            if (director != null) {
+                String nombreCompleto = (nvl(director.getName()) + " " + nvl(director.getSurname())).trim();
+                if (!nombreCompleto.isEmpty()) {
+                    return nombreCompleto;
+                }
+            }
+        }
         return "Por asignar";
     }
 

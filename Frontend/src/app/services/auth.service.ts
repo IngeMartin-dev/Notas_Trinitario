@@ -12,6 +12,11 @@ export interface LoginResponse {
   token: string;
   refreshToken: string;
   role: string;
+  // Presentes solo cuando el usuario tiene 2FA activado: en ese caso NO
+  // vienen token/refreshToken todavía, hay que llamar a verifyTwoFactor().
+  twoFactorRequired?: boolean;
+  userId?: number;
+  emailHint?: string;
 }
 
 export interface RefreshResponse {
@@ -44,8 +49,27 @@ export class AuthService {
             localStorage.setItem('token', response.token);
             localStorage.setItem('refreshToken', response.refreshToken);
             localStorage.setItem('role', response.role);
+            this.getCurrentUser().subscribe();
           }
-          this.getCurrentUser().subscribe();
+          // Si response.twoFactorRequired es true, todavía NO hay sesión:
+          // el componente de login debe pedir el código y llamar a
+          // verifyTwoFactor() para completar el inicio de sesión.
+        }),
+        catchError(this.handleError)
+      );
+  }
+
+  /** Segundo paso del login cuando el usuario tiene 2FA activado. */
+  verifyTwoFactor(userId: number, code: string): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(`${this.API_URL}/verify-2fa`, { userId, code })
+      .pipe(
+        tap(response => {
+          if (response.token) {
+            localStorage.setItem('token', response.token);
+            localStorage.setItem('refreshToken', response.refreshToken);
+            localStorage.setItem('role', response.role);
+            this.getCurrentUser().subscribe();
+          }
         }),
         catchError(this.handleError)
       );

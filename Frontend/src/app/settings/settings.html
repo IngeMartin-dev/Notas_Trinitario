@@ -83,6 +83,220 @@
   </div>
 </div>
 
+<!-- FAQ Modal -->
+<div class="logout-modal-overlay" [class.show]="showFaqModal()" (click)="closeFaqModal()">
+  <div class="logout-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Preguntas Frecuentes</h3>
+    </div>
+    <div class="modal-body">
+      <ul class="faq-list">
+        @for (item of faqItems; track $index) {
+          <li class="faq-item" [class.faq-open]="expandedFaqIndex() === $index">
+            <button class="faq-question" (click)="toggleFaq($index)">
+              <span>{{ item.question }}</span>
+              <span class="material-icons faq-chevron">expand_more</span>
+            </button>
+            @if (expandedFaqIndex() === $index) {
+              <p class="faq-answer">{{ item.answer }}</p>
+            }
+          </li>
+        }
+      </ul>
+      <p class="faq-footer">¿No encontraste lo que buscabas? Usa "Contactar Soporte" para escribirnos directamente.</p>
+    </div>
+    <div class="modal-actions">
+      <button class="cancel-btn" (click)="closeFaqModal()">
+        <span class="material-icons">close</span>
+        Cerrar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Support Modal -->
+<div class="logout-modal-overlay" [class.show]="showSupportModal()" (click)="closeSupportModal()">
+  <div class="logout-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Contactar Soporte</h3>
+    </div>
+    <div class="modal-body">
+      <p>Nuestro equipo de soporte técnico está disponible para ayudarte con cualquier problema en la plataforma.</p>
+      <ul class="support-info-list">
+        <li>
+          <span class="material-icons">email</span>
+          <div>
+            <strong>Correo</strong>
+            <p>soporte&#64;colegiotrinitario.edu.co</p>
+          </div>
+        </li>
+        <li>
+          <span class="material-icons">call</span>
+          <div>
+            <strong>Teléfono</strong>
+            <p>(605) 653 9572</p>
+          </div>
+        </li>
+        <li>
+          <span class="material-icons">location_on</span>
+          <div>
+            <strong>Dirección</strong>
+            <p>Cra 81C #22-124, San Fernando, Cartagena de Indias, Bolívar</p>
+          </div>
+        </li>
+        <li>
+          <span class="material-icons">schedule</span>
+          <div>
+            <strong>Horario de atención</strong>
+            <p>Lunes a viernes, 7:00 a.m. – 3:00 p.m.</p>
+          </div>
+        </li>
+      </ul>
+    </div>
+    <div class="modal-actions">
+      <button class="cancel-btn" (click)="closeSupportModal()">
+        <span class="material-icons">close</span>
+        Cerrar
+      </button>
+      <button class="confirm-btn" (click)="contactSupport()">
+        <span class="material-icons">mail</span>
+        Escribir Correo
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 2FA Enable Modal -->
+<div class="logout-modal-overlay" [class.show]="showTwoFactorEnableModal()" (click)="cancelEnableTwoFactor()">
+  <div class="logout-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Activar Autenticación de Dos Factores</h3>
+    </div>
+    <div class="modal-body">
+      <p>Enviamos un código de 6 dígitos a <strong>{{ twoFactorEmailHint() }}</strong>. Ingrésalo para activar esta protección extra en tu cuenta.</p>
+      <div class="form-group">
+        <label for="enable-2fa-code">Código de verificación</label>
+        <input type="text" id="enable-2fa-code" inputmode="numeric" maxlength="6"
+               [ngModel]="twoFactorCodeInput()" (ngModelChange)="twoFactorCodeInput.set($event)"
+               name="enable2faCode" placeholder="123456" autocomplete="one-time-code">
+      </div>
+      @if (twoFactorError()) {
+        <p class="error-message">
+          <span class="material-icons">error_outline</span>
+          {{ twoFactorError() }}
+        </p>
+      }
+    </div>
+    <div class="modal-actions">
+      <button class="cancel-btn" (click)="cancelEnableTwoFactor()">
+        <span class="material-icons">close</span>
+        Cancelar
+      </button>
+      <button class="confirm-btn" [disabled]="twoFactorBusy()" (click)="confirmEnableTwoFactor()">
+        @if (twoFactorBusy()) {
+          <span class="material-icons spin">autorenew</span>
+        } @else {
+          <span class="material-icons">check</span>
+        }
+        Activar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 2FA Disable Modal -->
+<div class="logout-modal-overlay" [class.show]="showTwoFactorDisableModal()" (click)="cancelDisableTwoFactor()">
+  <div class="logout-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Desactivar Autenticación de Dos Factores</h3>
+    </div>
+    <div class="modal-body">
+      <p>Por seguridad, confirma tu contraseña actual para desactivar esta protección.</p>
+      <div class="form-group">
+        <label for="disable-2fa-password">Contraseña actual</label>
+        <input type="password" id="disable-2fa-password"
+               [ngModel]="twoFactorPasswordInput()" (ngModelChange)="twoFactorPasswordInput.set($event)"
+               name="disable2faPassword" placeholder="Tu contraseña" autocomplete="current-password">
+      </div>
+      @if (twoFactorError()) {
+        <p class="error-message">
+          <span class="material-icons">error_outline</span>
+          {{ twoFactorError() }}
+        </p>
+      }
+    </div>
+    <div class="modal-actions">
+      <button class="cancel-btn" (click)="cancelDisableTwoFactor()">
+        <span class="material-icons">close</span>
+        Cancelar
+      </button>
+      <button class="confirm-btn" [disabled]="twoFactorBusy()" (click)="confirmDisableTwoFactor()">
+        @if (twoFactorBusy()) {
+          <span class="material-icons spin">autorenew</span>
+        } @else {
+          <span class="material-icons">check</span>
+        }
+        Desactivar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Active Sessions Modal -->
+<div class="logout-modal-overlay" [class.show]="showSessionsModal()" (click)="closeActiveSessionsModal()">
+  <div class="logout-modal" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Sesiones Activas</h3>
+    </div>
+    <div class="modal-body">
+      @if (loadingSessions()) {
+        <div class="sessions-loading">
+          <span class="material-icons spin">autorenew</span>
+          <p>Cargando tus sesiones...</p>
+        </div>
+      } @else if (sessionsError()) {
+        <p class="error-message">{{ sessionsError() }}</p>
+      } @else if (activeSessions().length === 0) {
+        <p>No se encontraron sesiones activas.</p>
+      } @else {
+        <ul class="sessions-list">
+          @for (session of activeSessions(); track session.id) {
+            <li class="session-item" [class.session-current]="session.current">
+              <span class="material-icons session-icon">devices</span>
+              <div class="session-info">
+                <strong>{{ session.device }}</strong>
+                @if (session.current) {
+                  <span class="session-badge">Este dispositivo</span>
+                }
+                <p class="session-meta">
+                  {{ session.ipAddress || 'IP no disponible' }} · última actividad: {{ session.lastUsedAt | date:'short' }}
+                </p>
+              </div>
+              <button
+                class="session-revoke-btn"
+                [disabled]="revokingSessionId() === session.id"
+                (click)="revokeSession(session.id, session.current)"
+                title="Cerrar esta sesión">
+                @if (revokingSessionId() === session.id) {
+                  <span class="material-icons spin">autorenew</span>
+                } @else {
+                  <span class="material-icons">logout</span>
+                }
+              </button>
+            </li>
+          }
+        </ul>
+      }
+    </div>
+    <div class="modal-actions">
+      <button class="cancel-btn" (click)="closeActiveSessionsModal()">
+        <span class="material-icons">close</span>
+        Cerrar
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- Terms and Conditions Modal -->
 <div class="logout-modal-overlay" [class.show]="showTermsModal()" (click)="closeTermsModal()">
   <div class="logout-modal legal-modal" (click)="$event.stopPropagation()">
@@ -122,11 +336,26 @@
       
       <h4>9. CONTACTO</h4>
       <p>Para consultas sobre estos términos, contacte a soporte@colegiotrinitario.edu.co</p>
+
+      <h4>10. CONDUCTA Y USO RESPONSABLE</h4>
+      <p>Los usuarios se comprometen a hacer un uso respetuoso de los canales de comunicación de la plataforma (chat, comentarios). Está prohibido el envío de contenido ofensivo, discriminatorio o que vulnere los derechos de otros miembros de la comunidad educativa.</p>
+
+      <h4>11. DISPONIBILIDAD DEL SERVICIO</h4>
+      <p>La plataforma puede presentar interrupciones programadas por mantenimiento, actualizaciones o causas de fuerza mayor. Se notificará con antelación siempre que sea posible.</p>
+
+      <h4>12. SUSPENSIÓN O TERMINACIÓN DE CUENTA</h4>
+      <p>El Colegio Trinitario podrá suspender o cancelar el acceso de un usuario que incumpla estos términos, sin perjuicio de las acciones disciplinarias o legales a que haya lugar.</p>
+
+      <h4>13. LEY APLICABLE</h4>
+      <p>Estos términos se rigen por las leyes de la República de Colombia. Cualquier controversia se resolverá ante las autoridades competentes de Cartagena de Indias, Bolívar.</p>
+
+      <h4>14. VIGENCIA</h4>
+      <p>Estos términos entran en vigor desde su publicación y permanecerán vigentes mientras el usuario mantenga acceso activo a la plataforma.</p>
       
       <p class="last-update">Última actualización: Febrero {{ currentYear }}</p>
     </div>
     <div class="modal-actions">
-      <button class="confirm-btn" (click)="closeTermsModal()">
+      <button class="confirm-btn" (click)="acceptTerms()">
         <span class="material-icons">check</span>
         Aceptar y Cerrar
       </button>
@@ -200,11 +429,20 @@
       
       <h4>10. CONTACTO</h4>
       <p>Para ejercer sus derechos de privacidad o realizar consultas, contacte a: soporte@colegiotrinitario.edu.co</p>
+
+      <h4>11. TRANSFERENCIA Y ALMACENAMIENTO DE DATOS</h4>
+      <p>Sus datos se almacenan en servidores con medidas de seguridad adecuadas. En caso de requerirse una transferencia a un tercero (por ejemplo, un proveedor de infraestructura), se garantizará un nivel de protección equivalente al aquí descrito.</p>
+
+      <h4>12. MARCO LEGAL (Colombia)</h4>
+      <p>Esta política se enmarca en la Ley 1581 de 2012 y el Decreto 1377 de 2013 de protección de datos personales en Colombia. Puede presentar quejas o reclamos ante la Superintendencia de Industria y Comercio si considera que sus derechos no han sido respetados.</p>
+
+      <h4>13. ACTUALIZACIONES DE ESTA POLÍTICA</h4>
+      <p>Cualquier cambio sustancial a esta política será notificado a través de la aplicación con al menos 15 días de anticipación a su entrada en vigor.</p>
       
       <p class="last-update">Última actualización: Febrero {{ currentYear }}</p>
     </div>
     <div class="modal-actions">
-      <button class="confirm-btn" (click)="closePrivacyModal()">
+      <button class="confirm-btn" (click)="acceptPrivacy()">
         <span class="material-icons">check</span>
         Entendido y Cerrar
       </button>
@@ -428,12 +666,13 @@
             </div>
           </div>
           <label class="switch">
-            <input type="checkbox" id="two-factor-auth" name="twoFactorAuth" title="Autenticación de dos factores">
+            <input type="checkbox" id="two-factor-auth" name="twoFactorAuth" title="Autenticación de dos factores"
+                   [checked]="twoFactorEnabled()" [disabled]="twoFactorBusy()" (change)="onToggleTwoFactor()">
             <span class="slider round"></span>
           </label>
         </div>
         
-        <div class="setting-item clickable">
+        <div class="setting-item clickable" (click)="openActiveSessionsModal()">
           <div class="setting-info">
             <span class="material-icons setting-icon">devices</span>
             <div class="setting-text">
@@ -463,12 +702,12 @@
           </label>
         </div>
         
-        <div class="setting-item clickable" (click)="downloadMyData()">
+        <div class="setting-item clickable" [class.disabled]="downloadingData()" (click)="!downloadingData() && downloadMyData()">
           <div class="setting-info">
-            <span class="material-icons setting-icon">download</span>
+            <span class="material-icons setting-icon">{{ downloadingData() ? 'hourglass_empty' : 'download' }}</span>
             <div class="setting-text">
               <h3>Descargar mis Datos</h3>
-              <p>Exporta una copia de tu información</p>
+              <p>{{ downloadingData() ? 'Preparando tu exportación completa...' : 'Exporta una copia completa de tu información' }}</p>
             </div>
           </div>
           <span class="material-icons chevron">chevron_right</span>
@@ -479,7 +718,7 @@
     <div class="settings-section">
       <h2>Ayuda</h2>
       <div class="settings-options">
-        <div class="setting-item clickable">
+        <div class="setting-item clickable" (click)="openFaqModal()">
           <div class="setting-info">
             <span class="material-icons setting-icon">help</span>
             <div class="setting-text">
@@ -490,7 +729,7 @@
           <span class="material-icons chevron">chevron_right</span>
         </div>
         
-        <div class="setting-item clickable" (click)="contactSupport()">
+        <div class="setting-item clickable" (click)="openSupportModal()">
           <div class="setting-info">
             <span class="material-icons setting-icon">support_agent</span>
             <div class="setting-text">

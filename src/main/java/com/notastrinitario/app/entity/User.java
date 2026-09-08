@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.Collection;
 import java.util.Collections;
+import java.time.LocalDateTime;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -80,6 +81,12 @@ public class User implements UserDetails {
 
     private Boolean enable;
 
+    @Column(name = "terms_accepted_at")
+    private LocalDateTime termsAcceptedAt;
+
+    @Column(name = "privacy_accepted_at")
+    private LocalDateTime privacyAcceptedAt;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -110,17 +117,32 @@ public class User implements UserDetails {
     public Boolean getTwoFactorEnabled() { return twoFactorEnabled; }
     public void setTwoFactorEnabled(Boolean twoFactorEnabled) { this.twoFactorEnabled = twoFactorEnabled; }
 
+    // @JsonIgnore en estos 3: son secretos internos de la verificación en dos
+    // pasos (el código temporal y su vencimiento). Antes se serializaban tal
+    // cual en CUALQUIER respuesta que incluyera un User (p.ej. /api/auth/me),
+    // lo que hubiera dejado ver el código de 2FA vigente en la pestaña de red
+    // del navegador -bastaba con inspeccionar la respuesta para saltarse la
+    // verificación-. Igual que la contraseña, esto nunca debe llegar al cliente.
+    @JsonIgnore
     public String getTwoFactorSecret() { return twoFactorSecret; }
     public void setTwoFactorSecret(String twoFactorSecret) { this.twoFactorSecret = twoFactorSecret; }
 
+    @JsonIgnore
     public String getTemp2faCode() { return temp2faCode; }
     public void setTemp2faCode(String temp2faCode) { this.temp2faCode = temp2faCode; }
 
+    @JsonIgnore
     public Long getTemp2faExpiry() { return temp2faExpiry; }
     public void setTemp2faExpiry(Long temp2faExpiry) { this.temp2faExpiry = temp2faExpiry; }
 
     public Boolean getEnable() { return enable; }
     public void setEnable(Boolean enable) { this.enable = enable; }
+
+    public LocalDateTime getTermsAcceptedAt() { return termsAcceptedAt; }
+    public void setTermsAcceptedAt(LocalDateTime termsAcceptedAt) { this.termsAcceptedAt = termsAcceptedAt; }
+
+    public LocalDateTime getPrivacyAcceptedAt() { return privacyAcceptedAt; }
+    public void setPrivacyAcceptedAt(LocalDateTime privacyAcceptedAt) { this.privacyAcceptedAt = privacyAcceptedAt; }
 
     public String getFcmToken() { return fcmToken; }
     public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }

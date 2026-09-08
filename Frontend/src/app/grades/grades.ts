@@ -2468,10 +2468,22 @@ Estética: usa encabezados claros, viñetas, tablas simples y un estilo limpio y
 
 
 
+// Si Mistral se cuelga y no llega NINGÚN dato nuevo en este tiempo, se
+         // corta la espera y se muestra un error en vez de dejar la rueda de
+         // carga girando indefinidamente ("se demora mucho" / "no genera").
+         const AI_IDLE_TIMEOUT_MS = 100000;
+         let idleTimer: any = null;
+         const abortController = new AbortController();
+         const resetIdleTimer = () => {
+           if (idleTimer) clearTimeout(idleTimer);
+           idleTimer = setTimeout(() => abortController.abort(), AI_IDLE_TIMEOUT_MS);
+         };
+
 try {
            // Generate the study plan via the backend proxy (NVIDIA API).
            // The API key stays server-side; the backend returns the SSE stream.
            const url = `${this.AI_PROXY_BASE}/study-plan-stream`;
+           resetIdleTimer();
            const response = await fetch(url, {
              method: 'POST',
              headers: {
@@ -2481,7 +2493,8 @@ try {
                 prompt: prompt,
                 temperature: 0.4,
                  max_tokens: 24000
-              })
+              }),
+              signal: abortController.signal
            });
 
 if (!response.ok) {
@@ -2515,6 +2528,7 @@ if (!response.ok) {
 
           while (true) {
             const { done, value } = await reader.read();
+            resetIdleTimer(); // llegó algo (o terminó): reinicia la ventana de espera
             if (done) {
               if (buffer.trim()) {
                 const line = buffer.trim();
@@ -2575,9 +2589,23 @@ if (!response.ok) {
              }
            }
 
+            if (idleTimer) clearTimeout(idleTimer);
             this.stopProgressAnimation();
            this.progressPercent = Math.max(this.progressPercent, 98);
            // Set progress to 98% when content is received
+
+           // Si el stream terminó sin ningún error PERO tampoco llegó texto,
+           // antes esto se mostraba como un plan vacío sin explicación. Ahora
+           // se avisa claramente al usuario.
+           if (!fullText || !fullText.trim()) {
+             const errorMsg = 'La IA no devolvió contenido. Por favor intenta generar el plan de nuevo.';
+             this.studyPlanContent = errorMsg;
+             this.studyPlanContentSafe = this.sanitizer.bypassSecurityTrustHtml(errorMsg);
+             this.showProgressBar = false;
+             this.progressPercent = 0;
+             this.planGenerated = true;
+             return;
+           }
 
           let sanitizedText = this.sanitizeAiText(fullText);
 
@@ -2685,8 +2713,13 @@ if (!response.ok) {
          // Save to backend
          this.saveStudyPlanToBackend();
          this.onPlanGenerated();
-      } catch (error) {
-       const errorMsg = 'Error de conexión. Por favor verifica tu conexión a internet e intenta de nuevo.';
+      } catch (error: any) {
+       if (idleTimer) clearTimeout(idleTimer);
+       const errorMsg = error?.name === 'AbortError'
+         ? 'La IA está tardando demasiado en responder. Por favor intenta de nuevo en unos minutos.'
+         : (error?.streamError && error?.message
+             ? error.message
+             : 'Error de conexión. Por favor verifica tu conexión a internet e intenta de nuevo.');
        this.studyPlanContent = errorMsg;
        this.studyPlanContentSafe = this.sanitizer.bypassSecurityTrustHtml(errorMsg);
        this.stopProgressAnimation();

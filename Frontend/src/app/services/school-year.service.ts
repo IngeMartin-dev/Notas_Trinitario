@@ -81,4 +81,11 @@ export class SchoolYearService {
   fechaAlcanzada(): Observable<{ alcanzada: boolean }> {
     return this.http.get<{ alcanzada: boolean }>(`${this.API_BASE}/fecha-alcanzada`);
   }
+
+  /** Registra un estudiante nuevo (usado en el paso "Grado 1" del asistente
+   *  de organización de salones: a diferencia de los demás grados, a Grado
+   *  1 no llega nadie promovido, solo estudiantes nuevos). */
+  createStudent(student: { name: string; surname: string; documentNumber: string; grade: string; classGroup: string; active: boolean }): Observable<any> {
+    return this.http.post('http://localhost:8080/api/students', student);
+  }
 }

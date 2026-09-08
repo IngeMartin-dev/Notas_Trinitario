@@ -26,6 +26,14 @@ export class Login {
   private minLoadingTime = 1500; // Minimum spinner display time in ms
   private loadingStartTime = 0;
 
+  // ── Autenticación de Dos Factores (2FA) ──
+  // Cuando el backend responde twoFactorRequired=true, se muestra un
+  // segundo paso pidiendo el código que llegó al correo del usuario.
+  twoFactorStep = signal(false);
+  twoFactorCode = signal('');
+  twoFactorEmailHint = signal('');
+  private pendingUserId: number | null = null;
+
   constructor(
     private authService: AuthService,
     private router: Router,
@@ -34,6 +42,52 @@ export class Login {
 
   togglePasswordVisibility() {
     this.passwordVisible.set(!this.passwordVisible());
+  }
+
+  private goToDashboardAfterLogin() {
+    this.authService.getCurrentUser().subscribe({
+      next: (user) => {
+        if (user && user.id) {
+          this.notificationService.registerPushToken(user.id);
+        }
+      },
+      error: (err) => console.error('Error getting current user:', err)
+    });
+
+    const elapsed = Date.now() - this.loadingStartTime;
+    const delay = Math.max(0, this.minLoadingTime - elapsed);
+    setTimeout(() => {
+      this.isLoading.set(false);
+      this.buttonState.set('success');
+      this.buttonText.set('Bienvenido');
+      setTimeout(() => {
+        this.isFadingOut.set(true);
+        setTimeout(() => {
+          this.router.navigate(['/dashboard']);
+        }, 500);
+      }, 1000);
+    }, delay);
+  }
+
+  private showLoginError(message: string) {
+    const elapsed = Date.now() - this.loadingStartTime;
+    const delay = Math.max(0, this.minLoadingTime - elapsed);
+    setTimeout(() => {
+      this.isLoading.set(false);
+      this.buttonState.set('error');
+      this.buttonText.set('Incorrecto');
+      this.errorMessage.set(message);
+      this.errorVisible.set(true);
+      this.errorHiding.set(false);
+      setTimeout(() => {
+        this.errorHiding.set(true);
+        setTimeout(() => {
+          this.errorVisible.set(false);
+          this.buttonState.set('default');
+          this.buttonText.set(this.twoFactorStep() ? 'Verificar código' : 'Iniciar Sesión');
+        }, 500);
+      }, 5000);
+    }, delay);
   }
 
   onLogin() {
@@ -63,52 +117,48 @@ export class Login {
     }).subscribe({
       next: (response) => {
         console.log('Login successful:', response);
-        
-        // Get current user info and register push token
-        this.authService.getCurrentUser().subscribe({
-          next: (user) => {
-            if (user && user.id) {
-              this.notificationService.registerPushToken(user.id);
-            }
-          },
-          error: (err) => console.error('Error getting current user:', err)
-        });
-        
-        const elapsed = Date.now() - this.loadingStartTime;
-        const delay = Math.max(0, this.minLoadingTime - elapsed);
-        setTimeout(() => {
+
+        if (response.twoFactorRequired) {
+          // No hay sesión todavía: pedir el código de verificación.
+          this.pendingUserId = response.userId ?? null;
+          this.twoFactorEmailHint.set(response.emailHint || 'tu correo registrado');
+          this.twoFactorStep.set(true);
           this.isLoading.set(false);
-          this.buttonState.set('success');
-          this.buttonText.set('Bienvenido');
-          setTimeout(() => {
-            this.isFadingOut.set(true);
-            setTimeout(() => {
-              this.router.navigate(['/dashboard']);
-            }, 500);
-          }, 1000);
-        }, delay);
+          this.buttonState.set('default');
+          this.buttonText.set('Verificar código');
+          return;
+        }
+
+        this.goToDashboardAfterLogin();
       },
       error: (error) => {
         console.error('Login error:', error);
-        const elapsed = Date.now() - this.loadingStartTime;
-        const delay = Math.max(0, this.minLoadingTime - elapsed);
-        setTimeout(() => {
-          this.isLoading.set(false);
-          this.buttonState.set('error');
-          this.buttonText.set('Incorrecto');
-          this.errorMessage.set(error.message || 'Error al iniciar sesión');
-          this.errorVisible.set(true);
-          this.errorHiding.set(false);
-          setTimeout(() => {
-            this.errorHiding.set(true);
-            setTimeout(() => {
-              this.errorVisible.set(false);
-              this.buttonState.set('default');
-              this.buttonText.set('Iniciar Sesión');
-            }, 500);
-          }, 5000);
-        }, delay);
+        this.showLoginError(error.message || 'Error al iniciar sesión');
       }
     });
+  }
+
+  onVerifyTwoFactor() {
+    if (!this.pendingUserId || !this.twoFactorCode().trim()) {
+      this.errorMessage.set('Ingresa el código que llegó a tu correo');
+      this.errorVisible.set(true);
+      this.errorHiding.set(false);
+      return;
+    }
+    this.errorVisible.set(false);
+    this.isLoading.set(true);
+    this.loadingStartTime = Date.now();
+
+    this.authService.verifyTwoFactor(this.pendingUserId, this.twoFactorCode().trim()).subscribe({
+      next: () => this.goToDashboardAfterLogin(),
+      error: (error) => this.showLoginError(error.message || 'Código incorrecto o vencido')
+    });
+  }
+
+  cancelTwoFactor() {
+    this.twoFactorStep.set(false);
+    this.twoFactorCode.set('');
+    this.pendingUserId = null;
+    this.buttonText.set('Iniciar Sesión');
   }
 }

@@ -41,4 +41,12 @@ public interface ChatMessageRepository extends JpaRepository<ChatMessage, Long> 
            "ORDER BY m.createdAt ASC")
     List<ChatMessage> findNewSince(@Param("userA") Long userA, @Param("userB") Long userB,
                                     @Param("since") LocalDateTime since);
+
+    /** IDs distintos de usuarios que le han escrito (como remitentes) a
+     *  :userId al menos una vez. Se usa para que el personal (profesores,
+     *  directores, admins) vea en su directorio de contactos a los padres
+     *  que ya les escribieron, aunque los padres no formen parte del
+     *  directorio "base" de personal. */
+    @Query("SELECT DISTINCT m.sender.id FROM ChatMessage m WHERE m.receiver.id = :userId")
+    java.util.Set<Long> findDistinctSenderIdsTo(@Param("userId") Long userId);
 }

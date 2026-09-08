@@ -16,10 +16,14 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.SocketTimeoutException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import jakarta.annotation.PostConstruct;
 
 /**
  * Proxy hacia la API de Mistral (chat/completions, compatible con el formato
@@ -36,16 +40,53 @@ import java.util.Map;
 @CrossOrigin(origins = { "http://localhost:4200" })
 public class AiController {
 
+    private static final Logger log = LoggerFactory.getLogger(AiController.class);
+
     private final AppProperties appProperties;
 
     public AiController(AppProperties appProperties) {
         this.appProperties = appProperties;
     }
 
-    private String apiKey() {
-        String key = appProperties.getAi() != null ? appProperties.getAi().getMistralApiKey() : "";
+    /**
+     * Se ejecuta UNA vez al arrancar la aplicación y deja bien claro en los
+     * logs si la API key de Mistral falta o quedó mal configurada, en vez de
+     * descubrirlo recién cuando un usuario intenta generar un plan de estudio.
+     * Revisa (en este orden): variable de entorno MISTRAL_API_KEY, luego la
+     * propiedad app.ai.mistral-api-key de application.properties.
+     */
+    @PostConstruct
+    public void checkAiConfigOnStartup() {
+        String key = apiKeyOrNull();
         if (key == null || key.isBlank()) {
-            throw new IllegalStateException("Mistral API key is not configured (app.ai.mistral-api-key)");
+            log.warn("========================================================================");
+            log.warn(" [IA] La API key de Mistral NO esta configurada.");
+            log.warn(" [IA] La generacion de planes de estudio con IA NO va a funcionar.");
+            log.warn(" [IA] Configurala con la variable de entorno MISTRAL_API_KEY");
+            log.warn(" [IA] o con la propiedad app.ai.mistral-api-key en application.properties.");
+            log.warn("========================================================================");
+        } else {
+            log.info("[IA] API key de Mistral configurada correctamente (modelo: {}).", model());
+        }
+    }
+
+    /** Igual que apiKey() pero sin lanzar excepcion (para el chequeo de arranque). */
+    private String apiKeyOrNull() {
+        // 1) Variable de entorno (recomendado: no queda commiteada en el repo).
+        String envKey = System.getenv("MISTRAL_API_KEY");
+        if (envKey != null && !envKey.isBlank()) {
+            return envKey;
+        }
+        // 2) Propiedad de application.properties (compatibilidad con la config actual).
+        return appProperties.getAi() != null ? appProperties.getAi().getMistralApiKey() : null;
+    }
+
+    private String apiKey() {
+        String key = apiKeyOrNull();
+        if (key == null || key.isBlank()) {
+            throw new IllegalStateException(
+                "La API key de Mistral no esta configurada. Definila en la variable de entorno "
+                + "MISTRAL_API_KEY o en app.ai.mistral-api-key (application.properties).");
         }
         return key;
     }
@@ -203,21 +244,54 @@ public class AiController {
         }
     }
 
+    /** Tiempo máximo (ms) sin recibir NINGÚN dato nuevo de Mistral durante el
+     *  streaming. Antes estaba en 0 (infinito): si Mistral se colgaba, la
+     *  petición se quedaba esperando para siempre y en el frontend parecía
+     *  que "no generaba nunca". Con esto, si no llega nada en ese tiempo se
+     *  corta y se informa el error al usuario en vez de dejarlo esperando. */
+    private static final int STREAM_READ_TIMEOUT_MS = 90000;
+
+    /** Escribe un evento SSE de error, en el mismo formato que ya sabe leer
+     *  el frontend ({"error": "..."}). Nunca lanza excepción. */
+    private void writeSseError(OutputStream out, String message) {
+        try {
+            out.write(("data: {\"error\":" + jsonStr(message) + "}\n\n").getBytes(StandardCharsets.UTF_8));
+            out.flush();
+        } catch (IOException ignored) {
+            // El cliente ya pudo haber cerrado la conexión; no hay nada más que hacer.
+        }
+    }
+
     /** Reenvía el stream SSE de Mistral (formato OpenAI) al cliente, línea
-     *  por línea, tal cual. El frontend ya sabe parsearlo. */
+     *  por línea, tal cual. El frontend ya sabe parsearlo.
+     *
+     *  IMPORTANTE: cualquier error (API key faltante, timeout, error HTTP de
+     *  Mistral, caída de red, etc.) SIEMPRE se traduce en un evento SSE
+     *  {"error": "..."} para que el frontend lo muestre; antes, algunos de
+     *  estos casos cerraban el stream vacío sin avisar, y la IA "no generaba
+     *  nada" sin que el usuario supiera por qué. */
     @SuppressWarnings("deprecation")
     private void forwardStream(String jsonPayload, OutputStream out) throws IOException {
         HttpURLConnection conn = null;
         try {
+            final String key;
+            try {
+                key = apiKey();
+            } catch (IllegalStateException e) {
+                log.warn("[IA] {}", e.getMessage());
+                writeSseError(out, e.getMessage());
+                return;
+            }
+
             URL u = new URL(url());
             conn = (HttpURLConnection) u.openConnection();
             conn.setRequestMethod("POST");
             conn.setDoOutput(true);
             conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + apiKey());
+            conn.setRequestProperty("Authorization", "Bearer " + key);
             conn.setRequestProperty("Accept", "text/event-stream");
-            conn.setConnectTimeout(60000);
-            conn.setReadTimeout(0);
+            conn.setConnectTimeout(30000);
+            conn.setReadTimeout(STREAM_READ_TIMEOUT_MS);
 
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(jsonPayload.getBytes(StandardCharsets.UTF_8));
@@ -226,11 +300,14 @@ public class AiController {
 
             int status = conn.getResponseCode();
             if (status != HttpURLConnection.HTTP_OK) {
+                String msg;
                 try (InputStream err = conn.getErrorStream()) {
-                    String msg = err != null ? new String(err.readAllBytes(), StandardCharsets.UTF_8) : "HTTP " + status;
-                    out.write(("data: {\"error\":" + jsonStr(msg) + "}\n\n").getBytes(StandardCharsets.UTF_8));
+                    String body = err != null ? new String(err.readAllBytes(), StandardCharsets.UTF_8) : "";
+                    msg = "Mistral respondió con error HTTP " + status
+                        + (body.isBlank() ? "" : (": " + body));
                 }
-                out.flush();
+                log.warn("[IA] Error de Mistral al generar el plan: {}", msg);
+                writeSseError(out, msg);
                 return;
             }
 
@@ -242,6 +319,12 @@ public class AiController {
                     out.flush();
                 }
             }
+        } catch (SocketTimeoutException e) {
+            log.warn("[IA] Timeout esperando respuesta de Mistral (más de {} ms sin datos).", STREAM_READ_TIMEOUT_MS);
+            writeSseError(out, "La IA está tardando demasiado en responder. Por favor intenta de nuevo en unos minutos.");
+        } catch (Exception e) {
+            log.error("[IA] Error inesperado generando el plan de estudio", e);
+            writeSseError(out, "Ocurrió un error inesperado generando el plan. Intenta de nuevo.");
         } finally {
             if (conn != null) {
                 conn.disconnect();

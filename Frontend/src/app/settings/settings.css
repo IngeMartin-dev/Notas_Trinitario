@@ -413,6 +413,12 @@
   background: var(--brand-50);
 }
 
+.setting-item.disabled {
+  opacity: 0.6;
+  cursor: default;
+  pointer-events: none;
+}
+
 .setting-info {
   display: flex;
   align-items: center;
@@ -692,10 +698,213 @@
   font-weight: 600;
 }
 
+/* Sesiones Activas */
+.sessions-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-4);
+  color: var(--text-secondary);
+}
+
+.spin {
+  animation: settings-spin 1s linear infinite;
+}
+
+@keyframes settings-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sessions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-alt, rgba(0,0,0,0.02));
+}
+
+.session-item.session-current {
+  border-color: var(--brand);
+  background: rgba(27, 106, 235, 0.06);
+}
+
+.session-icon {
+  color: var(--text-secondary);
+  font-size: 28px;
+}
+
+.session-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.session-badge {
+  display: inline-block;
+  width: fit-content;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--brand);
+  background: rgba(27, 106, 235, 0.12);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.session-meta {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.session-revoke-btn {
+  border: none;
+  background: transparent;
+  color: var(--danger);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.session-revoke-btn:hover:not(:disabled) {
+  background: rgba(220, 53, 69, 0.1);
+}
+
+.session-revoke-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* FAQ */
+.faq-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+
+.faq-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.faq-question {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-2);
+  background: transparent;
+  border: none;
+  text-align: left;
+  padding: var(--sp-3);
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--text-primary);
+}
+
+.faq-item.faq-open .faq-chevron {
+  transform: rotate(180deg);
+}
+
+.faq-chevron {
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.faq-answer {
+  margin: 0;
+  padding: 0 var(--sp-3) var(--sp-3);
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.faq-footer {
+  margin-top: var(--sp-3);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+/* Soporte */
+.support-info-list {
+  list-style: none;
+  margin: var(--sp-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+
+.support-info-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-3);
+}
+
+.support-info-list .material-icons {
+  color: var(--brand);
+}
+
+.support-info-list strong {
+  display: block;
+  font-size: 0.85rem;
+}
+
+.support-info-list p {
+  margin: 2px 0 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
 /* Legal Modal */
 .legal-modal {
-  max-width: 600px;
+  max-width: 640px;
   max-height: 85vh;
+}
+
+.legal-modal .modal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  background: linear-gradient(135deg, var(--brand) 0%, #0d47a1 100%);
+  margin: calc(var(--sp-4) * -1) calc(var(--sp-4) * -1) 0;
+  padding: var(--sp-4);
+  border-radius: 14px 14px 0 0;
+}
+
+.legal-modal .modal-header h3 {
+  color: #fff;
+  margin: 0;
+}
+
+.legal-modal .modal-header::before {
+  content: 'gavel';
+  font-family: 'Material Icons';
+  color: #fff;
+  font-size: 22px;
 }
 
 .legal-content {
@@ -708,7 +917,10 @@
 .legal-content h4 {
   color: var(--brand);
   font-size: 0.95rem;
+  font-weight: 700;
   margin: var(--sp-4) 0 var(--sp-2);
+  padding-left: 12px;
+  border-left: 4px solid var(--brand);
 }
 
 .legal-content p {

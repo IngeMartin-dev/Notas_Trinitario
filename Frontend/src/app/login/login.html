@@ -12,10 +12,16 @@
   <div class="right-panel">
     <div class="login-form-container">
       <div class="form-header">
-        <h2>Iniciar Sesión</h2>
-        <p>Ingresa tu correo y contraseña para acceder a la app</p>
+        @if (!twoFactorStep()) {
+          <h2>Iniciar Sesión</h2>
+          <p>Ingresa tu correo y contraseña para acceder a la app</p>
+        } @else {
+          <h2>Verificación en dos pasos</h2>
+          <p>Enviamos un código de 6 dígitos a {{ twoFactorEmailHint() }}</p>
+        }
       </div>
 
+      @if (!twoFactorStep()) {
       <form class="login-form" (submit)="$event.preventDefault()">
         <div class="form-group">
           <label for="username">Usuario</label>
@@ -69,6 +75,40 @@
               }
             </button>
           </form>
+      } @else {
+          <form class="login-form" (submit)="$event.preventDefault()">
+            <div class="form-group">
+              <label for="twofa-code">Código de verificación</label>
+              <div class="input-group">
+                <span class="material-icons input-icon">password</span>
+                <input
+                  type="text"
+                  id="twofa-code"
+                  inputmode="numeric"
+                  maxlength="6"
+                  [ngModel]="twoFactorCode()"
+                  (ngModelChange)="twoFactorCode.set($event)"
+                  name="twoFactorCode"
+                  placeholder="123456"
+                  autocomplete="one-time-code"
+                  required
+                  class="form-input">
+              </div>
+            </div>
+
+            <button type="button" class="login-btn" [class.success]="buttonState() === 'success'" [class.error]="buttonState() === 'error'" [disabled]="isLoading()" (click)="onVerifyTwoFactor(); $event.preventDefault()">
+              @if (!isLoading()) {
+                <span>{{ buttonText() }}</span>
+              }
+              @if (isLoading()) {
+                <span class="loading-spinner"></span>
+              }
+            </button>
+            <button type="button" class="password-toggle" style="margin-top:8px;width:100%;text-align:center;" (click)="cancelTwoFactor()">
+              Volver a intentar con otra cuenta
+            </button>
+          </form>
+      }
 
           <div class="error-message" [class.visible]="errorVisible()" [class.hide]="errorHiding()">
             {{ errorMessage() }}

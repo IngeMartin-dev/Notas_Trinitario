@@ -14,10 +14,11 @@ except ImportError:
     BeautifulSoup = None
 
 try:
-    from pypdf import PdfWriter, PdfReader
+    from pypdf import PdfWriter, PdfReader, Transformation
 except ImportError:
     PdfWriter = None
     PdfReader = None
+    Transformation = None
 
 if len(sys.argv) < 3:
     print("Uso: playwright_generator.py <input_html> <output_pdf>", file=sys.stderr)
@@ -31,8 +32,25 @@ if not os.path.exists(input_html_abs):
     print(f"ERROR: No existe el archivo HTML: {input_html_abs}", file=sys.stderr)
     sys.exit(1)
 
+# ---------------------------------------------------------------------------
+# TAMAÑO DE RENDER ORIGINAL del diseño del boletín (SVG de la plantilla,
+# medido en pixeles fijos: 816x1344 = 8.5in x 14in a 96dpi). NO SE TOCA,
+# porque el SVG tiene cientos de coordenadas absolutas calculadas para
+# esa proporción exacta; cambiarlo a mano rompería el diseño.
+ORIG_WIDTH_IN = 8.5
+ORIG_HEIGHT_IN = 14.0
+
+# TAMAÑO FINAL DE PÁGINA que debe tener el PDF entregado: CARTA (Letter),
+# 8.5in x 11in, ya preconfigurado. Cada página generada con el tamaño
+# "original" de arriba se reescala automáticamente (sin recortar ni
+# deformar, conservando proporción) para caber en esta hoja carta antes
+# de escribir el PDF final. Así el archivo SIEMPRE queda en tamaño carta.
 PAGE_WIDTH_IN = 8.5
-PAGE_HEIGHT_IN = 14.0
+PAGE_HEIGHT_IN = 11.0
+
+# Los archivos de Consolidados se manejan aparte (ya están en Carta
+# horizontal, ver CONSOLIDADO_WIDTH_IN/CONSOLIDADO_HEIGHT_IN más abajo).
+
 BLOCKS_POR_HOJA = 12
 ALTO_BLOQUE_PX = 92.16
 EXT_PAGE_PAD_TOP = 20
@@ -41,14 +59,70 @@ EXT_PAGE_PAD_LEFT = 53.44
 EXT_PAGE_PAD_RIGHT = 30.4
 
 
+def _letterbox_page(reader_page, writer):
+    """Toma una pagina ya renderizada (a su tamano ORIGINAL de diseno) y la
+    agrega a `writer` como una pagina tamano CARTA (PAGE_WIDTH_IN x
+    PAGE_HEIGHT_IN), escalandola de forma UNIFORME (sin deformar) para que
+    quepa completa, centrada, con margenes blancos si sobra espacio. Nunca
+    la agranda (scale se limita a 1.0 como maximo) para no perder nitidez."""
+    target_w = PAGE_WIDTH_IN * 72.0
+    target_h = PAGE_HEIGHT_IN * 72.0
+    src_w = float(reader_page.mediabox.width)
+    src_h = float(reader_page.mediabox.height)
+
+    if Transformation is None or src_w <= 0 or src_h <= 0:
+        # Sin pypdf.Transformation disponible: se agrega tal cual (fallback).
+        writer.add_page(reader_page)
+        return
+
+    scale = min(target_w / src_w, target_h / src_h, 1.0)
+    new_w = src_w * scale
+    new_h = src_h * scale
+    offset_x = (target_w - new_w) / 2.0
+    offset_y = (target_h - new_h) / 2.0
+
+    blank = writer.add_blank_page(width=target_w, height=target_h)
+    transform = Transformation().scale(scale, scale).translate(offset_x, offset_y)
+    blank.merge_transformed_page(reader_page, transform)
+
+
+def _append_pdf_as_letter(pdf_path, writer):
+    """Lee un PDF (una o mas paginas) y agrega cada pagina a `writer` ya
+    convertida a tamano Carta mediante _letterbox_page."""
+    reader = PdfReader(pdf_path)
+    for pg in reader.pages:
+        _letterbox_page(pg, writer)
+
+
 def render_simple(html_path, out_path):
-    """Genera un PDF de una sola pieza, tamano de pagina fijo (comportamiento de siempre, boletines: 8.5in x 14in vertical)."""
+    """Genera el PDF final en tamano CARTA (8.5in x 11in), reescalando de
+    forma automatica el render original del diseno (8.5in x 14in) para que
+    quepa completo y sin deformarse. Se usa para documentos de una sola
+    pieza (por ejemplo el reporte de grado/salon) que no tienen bloques de
+    materias adicionales que partir."""
+    tmp_dir = os.path.dirname(os.path.abspath(out_path)) or "."
+    tmp_path = os.path.join(tmp_dir, "_render_orig.pdf")
     with sync_playwright() as p:
         browser = p.chromium.launch()
         page = browser.new_page()
         page.goto("file:///" + html_path.replace("\\", "/"))
-        page.pdf(path=out_path, width=f"{PAGE_WIDTH_IN}in", height=f"{PAGE_HEIGHT_IN}in", print_background=True)
+        page.pdf(path=tmp_path, width=f"{ORIG_WIDTH_IN}in", height=f"{ORIG_HEIGHT_IN}in", print_background=True)
         browser.close()
+
+    if PdfWriter is None or PdfReader is None:
+        # Sin pypdf disponible: se conserva el comportamiento anterior
+        # (tamano original) en vez de fallar la generacion completa.
+        os.replace(tmp_path, out_path)
+        return
+
+    writer = PdfWriter()
+    _append_pdf_as_letter(tmp_path, writer)
+    with open(out_path, "wb") as f:
+        writer.write(f)
+    try:
+        os.remove(tmp_path)
+    except OSError:
+        pass
 
 
 # Tamano de pagina para el Consolidado: Carta horizontal (apaisada),
@@ -81,10 +155,12 @@ def render_consolidado(html_path, out_path):
 
 
 def render_html_string(browser, html_str, out_path, height_px=None):
+    """Renderiza al tamano ORIGINAL de diseno (nunca al tamano carta final:
+    eso se aplica despues, en el merge, con _letterbox_page)."""
     page = browser.new_page()
     page.set_content(html_str, wait_until="load")
-    kwargs = dict(path=out_path, width=f"{PAGE_WIDTH_IN}in", print_background=True)
-    kwargs["height"] = f"{height_px}px" if height_px is not None else f"{PAGE_HEIGHT_IN}in"
+    kwargs = dict(path=out_path, width=f"{ORIG_WIDTH_IN}in", print_background=True)
+    kwargs["height"] = f"{height_px}px" if height_px is not None else f"{ORIG_HEIGHT_IN}in"
     page.pdf(**kwargs)
     page.close()
 
@@ -172,12 +248,11 @@ def try_split_and_merge(html_text, out_path):
 
         browser.close()
 
-    # Combinar todas las partes en un solo PDF final.
+    # Combinar todas las partes en un solo PDF final, convirtiendo cada
+    # pagina a tamano CARTA (8.5in x 11in) en el proceso.
     writer = PdfWriter()
     for pp in part_paths:
-        reader = PdfReader(pp)
-        for pg in reader.pages:
-            writer.add_page(pg)
+        _append_pdf_as_letter(pp, writer)
     with open(out_path, "wb") as f:
         writer.write(f)
 

@@ -1181,15 +1181,39 @@ public class BoletinService {
         String level = resolveLevelForGrade(gradeNum);
 
         if (level != null && gradeNum > 0) {
-            List<Subject> subjects = subjectRepository.findByGradeRange(gradeNum).stream()
-                    .filter(subject -> ("primaria".equals(level)
-                            && "primaria".equalsIgnoreCase(subject.getLevel()))
-                            || ("bachillerato".equals(level)
-                                    && "bachillerato".equalsIgnoreCase(subject.getLevel()))
-                            || ("media".equals(level)
-                                    && ("bachillerato".equalsIgnoreCase(subject.getLevel())
-                                            || "media".equalsIgnoreCase(subject.getLevel()))))
-                    .collect(Collectors.toCollection(ArrayList::new));
+            List<Subject> subjects;
+            if ("media".equals(level)) {
+                // IMPORTANTE: los grados 10° y 11° (nivel "media") deben ver
+                // TODAS las materias de bachillerato (Español, Matemáticas,
+                // Sociales, etc.) MÁS las materias exclusivas de media
+                // (Filosofía, Física, Química, etc.), es decir, se SUMAN.
+                //
+                // Antes esto se armaba con findByGradeRange(10 u 11), que
+                // exige gradeMin<=grado<=gradeMax. Como en la pantalla de
+                // Materias el nivel "Bachillerato" fija SIEMPRE gradeMin=6 y
+                // gradeMax=9 (ver subjects.ts -> onLevelChange), NINGUNA
+                // materia de bachillerato podía sobrevivir ese filtro para
+                // grado 10 u 11 (9 < 10), sin importar la unión de niveles
+                // que había después: nunca llegaban a compararse. Por eso las
+                // materias de bachillerato jamás se sumaban en 10°/11°.
+                //
+                // La solución es traer las materias de "bachillerato" por
+                // NIVEL (sin exigirles que su gradeMax llegue a 10/11) y
+                // sumarlas a las de "media" que sí correspondan a este grado
+                // exacto por su propio rango.
+                List<Subject> deBachillerato = subjectRepository.findByLevel("bachillerato");
+                List<Subject> deMedia = subjectRepository.findByGradeRange(gradeNum).stream()
+                        .filter(s -> "media".equalsIgnoreCase(s.getLevel()))
+                        .toList();
+                subjects = new ArrayList<>(deBachillerato.size() + deMedia.size());
+                subjects.addAll(deBachillerato);
+                subjects.addAll(deMedia);
+            } else {
+                String levelFinal = level;
+                subjects = subjectRepository.findByGradeRange(gradeNum).stream()
+                        .filter(subject -> levelFinal.equalsIgnoreCase(subject.getLevel()))
+                        .collect(Collectors.toCollection(ArrayList::new));
+            }
 
             if (!subjects.isEmpty()) {
                 // Deduplicado por nombre (sin distinguir mayúsculas/minúsculas

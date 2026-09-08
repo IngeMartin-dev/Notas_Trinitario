@@ -100,16 +100,53 @@ public class UserController {
 		if(!user.isPresent()) {
 			return ResponseEntity.notFound().build();
 		}
-		
-		//BeanUtils.copyProperties(userDetails, user.get());
-		user.get().setName(userDetails.getName());
+
+		String nuevoNombre = userDetails.getName() != null ? userDetails.getName().trim() : "";
+		String nuevoEmail = userDetails.getEmail() != null ? userDetails.getEmail().trim() : "";
+		String nuevoUsername = userDetails.getUsername() != null ? userDetails.getUsername().trim() : "";
+
+		if (nuevoNombre.isEmpty()) {
+			return ResponseEntity.badRequest().body(Map.of("error", "El nombre es obligatorio"));
+		}
+		if (nuevoEmail.isEmpty()) {
+			return ResponseEntity.badRequest().body(Map.of("error", "El correo es obligatorio"));
+		}
+		if (!nuevoEmail.matches("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$")) {
+			return ResponseEntity.badRequest().body(Map.of("error", "El correo no tiene un formato válido"));
+		}
+		if (nuevoUsername.isEmpty()) {
+			return ResponseEntity.badRequest().body(Map.of("error", "El nombre de usuario es obligatorio"));
+		}
+
+		// Antes, si el correo o el usuario ya estaban en uso por OTRA cuenta,
+		// el guardado fallaba con una excepción de la base de datos sin
+		// capturar (el índice único de la columna la rechazaba), y el
+		// usuario solo veía "Error al actualizar el perfil" sin saber por
+		// qué. Ahora se valida antes y se explica exactamente cuál es el problema.
+		Optional<User> conEseCorreo = userRepository.findByEmail(nuevoEmail);
+		if (conEseCorreo.isPresent() && !conEseCorreo.get().getId().equals(userId)) {
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(Map.of("error", "Ese correo ya está en uso por otra cuenta"));
+		}
+		Optional<User> conEseUsuario = userRepository.findByUsername(nuevoUsername);
+		if (conEseUsuario.isPresent() && !conEseUsuario.get().getId().equals(userId)) {
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(Map.of("error", "Ese nombre de usuario ya está en uso por otra cuenta"));
+		}
+
+		user.get().setName(nuevoNombre);
 		user.get().setSurname(userDetails.getSurname());
-		user.get().setUsername(userDetails.getUsername());
-		user.get().setEmail(userDetails.getEmail());
+		user.get().setUsername(nuevoUsername);
+		user.get().setEmail(nuevoEmail);
 		user.get().setEnable(userDetails.getEnable());
-		
-		return ResponseEntity.status(HttpStatus.CREATED).body(userService.save(user.get()));
-		
+
+		try {
+			return ResponseEntity.status(HttpStatus.CREATED).body(userService.save(user.get()));
+		} catch (org.springframework.dao.DataIntegrityViolationException e) {
+			// Red de seguridad por si algo se coló pese a las validaciones de arriba.
+			return ResponseEntity.status(HttpStatus.CONFLICT)
+					.body(Map.of("error", "No se pudo guardar: el correo o el usuario ya están en uso"));
+		}
 	}
 	
 	//Delete an User

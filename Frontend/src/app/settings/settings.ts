@@ -1003,10 +1003,17 @@ export class Settings implements OnInit, OnDestroy {
         this.isUpdatingProfile.set(false);
         
         let errorMsg = 'Error al actualizar el perfil. ';
-        if (error.status === 0) {
+        // Si el backend mandó un mensaje concreto (ej: "correo ya en uso",
+        // "nombre de usuario ya en uso"), mostrarlo tal cual en vez del
+        // mensaje genérico por código de estado.
+        if (error.error && typeof error.error === 'object' && error.error.error) {
+          errorMsg = error.error.error;
+        } else if (error.status === 0) {
           errorMsg += 'No se puede conectar con el servidor.';
         } else if (error.status === 401) {
           errorMsg += 'No tienes permisos para realizar esta acción.';
+        } else if (error.status === 409) {
+          errorMsg += 'El correo o el usuario ya están en uso.';
         } else if (error.status === 500) {
           errorMsg += 'Error interno del servidor.';
         } else {

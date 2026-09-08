@@ -525,6 +525,12 @@
                 </button>
               </div>
             </div>
+            @if (profileUpdateError()) {
+              <p class="error-message">
+                <span class="material-icons">error_outline</span>
+                {{ profileUpdateError() }}
+              </p>
+            }
           </div>
         }
       </div>

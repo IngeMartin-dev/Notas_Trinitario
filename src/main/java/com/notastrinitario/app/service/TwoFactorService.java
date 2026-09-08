@@ -35,13 +35,35 @@ public class TwoFactorService {
     }
 
     /** Genera un código de 6 dígitos, lo guarda (con expiración) y lo envía
-     *  por correo al usuario. Devuelve false si el envío de correo falla
-     *  (por ejemplo, si el servidor SMTP no está configurado). */
+     *  por correo al usuario. Devuelve false si algo falla: al enviar el
+     *  correo (por ejemplo si el SMTP no está bien configurado), O al
+     *  guardar (por ejemplo si el usuario tiene algún dato antiguo que ya
+     *  no cumple las validaciones del formulario -como un correo con
+     *  formato inválido guardado desde antes-; Hibernate revalida TODOS los
+     *  campos del usuario en cada guardado, no solo los que cambian). Antes
+     *  ese guardado no estaba protegido y una validación fallida tumbaba la
+     *  petición entera con un error 500 sin explicación. */
     public boolean generarYEnviarCodigo(User user, String asunto, String mensajeIntro) {
         String codigo = String.format("%06d", RANDOM.nextInt(1_000_000));
         user.setTemp2faCode(codigo);
         user.setTemp2faExpiry(Instant.now().toEpochMilli() + CODE_VALID_MS);
-        userRepository.save(user);
+
+        try {
+            userRepository.save(user);
+        } catch (jakarta.validation.ConstraintViolationException e) {
+            // Esto avisa EXACTAMENTE qué campo del usuario no cumple sus
+            // propias reglas de validación (@NotBlank, @Email, @Size...).
+            // Revisa esos datos del usuario en la base de datos y corrígelos.
+            StringBuilder detalle = new StringBuilder();
+            e.getConstraintViolations().forEach(v ->
+                detalle.append(v.getPropertyPath()).append(" ").append(v.getMessage()).append("; "));
+            System.err.println("[2FA] El usuario " + user.getId() + " tiene datos inválidos que impiden guardarlo: " + detalle);
+            return false;
+        } catch (Exception e) {
+            System.err.println("[2FA] No se pudo guardar el código de verificación para el usuario "
+                    + user.getId() + ": " + e.getMessage());
+            return false;
+        }
 
         try {
             MimeMessage message = mailSender.createMimeMessage();
@@ -80,7 +102,15 @@ public class TwoFactorService {
         // Un código usado no debe servir dos veces.
         user.setTemp2faCode(null);
         user.setTemp2faExpiry(null);
-        userRepository.save(user);
+        try {
+            userRepository.save(user);
+        } catch (Exception e) {
+            System.err.println("[2FA] No se pudo limpiar el código usado para el usuario "
+                    + user.getId() + ": " + e.getMessage());
+            // El código ya fue validado como correcto; no bloqueamos el login
+            // por un problema al limpiarlo (en el peor caso, seguirá válido
+            // hasta que expire en 10 minutos).
+        }
         return true;
     }
 }

@@ -73,6 +73,7 @@ body {
   padding-bottom: 6px;
   margin-bottom: 6px;
 }
+.encabezado--oculto { display: none; }
 .encabezado .logo { width: 58px; height: 58px; object-fit: contain; flex-shrink: 0; }
 .encabezado .titulo-institucion { flex: 1; }
 .encabezado .titulo-institucion h1 {
@@ -82,6 +83,20 @@ body {
 .encabezado .meta-linea { font-size: 10px; margin: 1px 0; }
 .encabezado .meta-linea b { font-weight: 700; }
 .encabezado .pagina-indicador { font-size: 9px; text-align: right; align-self: flex-start; white-space: nowrap; }
+
+/* Barra angosta de continuación: SOLO se muestra en la página 2 en
+   adelante (en vez del encabezado completo con logo, que solo va en la
+   página 1). Da contexto mínimo (grado/salón/período y número de
+   página) sin repetir el logo y el nombre completo del colegio. */
+.continuacion {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  border-bottom: 1px solid #000;
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+.continuacion--oculto { display: none; }
 
 table.consolidado { width: 100%; border-collapse: collapse; table-layout: fixed; }
 table.consolidado th, table.consolidado td {
@@ -121,7 +136,7 @@ th.col--vacia, td.col--vacia { display: none; }
 
 <div class="page" data-pagina="{{PAGINA_ACTUAL}}">
 
-  <div class="encabezado">
+  <div class="encabezado{{CLASE_ENCABEZADO_OCULTO}}">
     <img class="logo" src="{{LOGO_PATH}}" alt="Logo" />
     <div class="titulo-institucion">
       <h1>{{NOMBRE_INSTITUCION}}</h1>
@@ -129,6 +144,11 @@ th.col--vacia, td.col--vacia { display: none; }
       <div class="meta-linea"><b>DIRECTOR DE GRUPO:</b> {{DIRECTOR_GRUPO}}</div>
     </div>
     <div class="pagina-indicador">Pág. {{PAGINA_ACTUAL}} / {{PAGINA_TOTAL}}</div>
+  </div>
+
+  <div class="continuacion{{CLASE_CONTINUACION_OCULTO}}">
+    <span><b>{{NOMBRE_INSTITUCION}}</b> — {{GRADO}} {{SALON}} · Periodo {{PERIODO}}</span>
+    <span>Pág. {{PAGINA_ACTUAL}} / {{PAGINA_TOTAL}}</span>
   </div>
 
   <table class="consolidado">

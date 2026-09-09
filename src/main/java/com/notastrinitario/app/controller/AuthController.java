@@ -229,7 +229,8 @@ public class AuthController {
                 "email", user.getEmail() != null ? user.getEmail() : "",
                 "username", user.getUsername() != null ? user.getUsername() : "",
                 "profilePicture", user.getProfilePicture() != null ? user.getProfilePicture() : "",
-                "role", user.getRole() != null ? user.getRole() : Map.of("name", "USER")
+                "role", user.getRole() != null ? user.getRole() : Map.of("name", "USER"),
+                "twoFactorEnabled", Boolean.TRUE.equals(user.getTwoFactorEnabled())
             ));
         }
         return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
@@ -413,7 +414,9 @@ public class AuthController {
                 user, "Activar autenticación de dos factores",
                 "Ingresa este código para ACTIVAR la autenticación de dos factores en tu cuenta:");
         if (!enviado) {
-            return ResponseEntity.status(500).body(Map.of("error", "No se pudo enviar el código a tu correo"));
+            String motivo = twoFactorService.getUltimoError();
+            return ResponseEntity.status(500).body(Map.of("error",
+                    motivo != null ? motivo : "No se pudo enviar el código a tu correo"));
         }
         return ResponseEntity.ok(Map.of("success", true, "emailHint", maskEmail(user.getEmail())));
     }

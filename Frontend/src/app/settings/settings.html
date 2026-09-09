@@ -174,6 +174,10 @@
     </div>
     <div class="modal-body">
       <p>Enviamos un código de 6 dígitos a <strong>{{ twoFactorEmailHint() }}</strong>. Ingrésalo para activar esta protección extra en tu cuenta.</p>
+      <p class="spam-hint">
+        <span class="material-icons">info</span>
+        Si no lo ves en unos minutos, revisa tu carpeta de spam o correo no deseado.
+      </p>
       <div class="form-group">
         <label for="enable-2fa-code">Código de verificación</label>
         <input type="text" id="enable-2fa-code" inputmode="numeric" maxlength="6"

@@ -145,7 +145,12 @@ public class ConsolidadoService {
                     .replace("{{DIRECTOR_GRUPO}}", escapeHtml(director))
                     .replace("{{CIUDAD}}", "CARTAGENA")
                     .replace("{{FECHA_GENERACION}}", fecha)
-                    .replace("{{LEYENDA_MATERIAS}}", leyendaMaterias);
+                    .replace("{{LEYENDA_MATERIAS}}", leyendaMaterias)
+                    // El encabezado completo (logo + nombre del colegio + datos)
+                    // solo va en la PRIMERA hoja; de la 2 en adelante se muestra
+                    // en su lugar la barra angosta "continuacion" (sin logo).
+                    .replace("{{CLASE_ENCABEZADO_OCULTO}}", pagina == 1 ? "" : " encabezado--oculto")
+                    .replace("{{CLASE_CONTINUACION_OCULTO}}", pagina == 1 ? " continuacion--oculto" : "");
 
             // ── Encabezados + colapso de columnas de materia (22 cupos) ──
             // Ojo: {{COL_c_CLASE_VACIA}} aparece en el <th> de esa columna

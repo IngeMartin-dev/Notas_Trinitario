@@ -184,7 +184,22 @@ public class UserController {
 	   	Optional<User> userOpt = userService.findById(userId);
 
 	   	if(!userOpt.isPresent()) {
-	   		return ResponseEntity.notFound().build();
+	   		Map<String, String> notFound = new HashMap<>();
+	   		notFound.put("error", "Usuario no encontrado");
+	   		return ResponseEntity.status(HttpStatus.NOT_FOUND).body(notFound);
+	   	}
+
+	   	if (file == null || file.isEmpty()) {
+	   		Map<String, String> emptyFile = new HashMap<>();
+	   		emptyFile.put("error", "No se recibió ningún archivo");
+	   		return ResponseEntity.badRequest().body(emptyFile);
+	   	}
+
+	   	String contentType = file.getContentType();
+	   	if (contentType == null || !contentType.startsWith("image/")) {
+	   		Map<String, String> badType = new HashMap<>();
+	   		badType.put("error", "El archivo debe ser una imagen (jpg, png, webp, etc.)");
+	   		return ResponseEntity.badRequest().body(badType);
 	   	}
 
 	   	User user = userOpt.get();
@@ -213,8 +228,43 @@ public class UserController {
  	   return ResponseEntity.ok().body(response);
 
 	   	} catch (IOException e) {
-	   		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Failed to upload file");
+	   		System.err.println("[FotoPerfil] No se pudo escribir el archivo en disco para el usuario " + userId + ": " + e.getMessage());
+	   		Map<String, String> response = new HashMap<>();
+	   		response.put("error", "No se pudo guardar el archivo en el servidor: " + e.getMessage());
+	   		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+	   	} catch (Exception e) {
+	   		String detalle = describirCausaRaiz(e);
+	   		System.err.println("[FotoPerfil] Error guardando el usuario " + userId + ": " + detalle);
+	   		e.printStackTrace();
+	   		Map<String, String> response = new HashMap<>();
+	   		response.put("error", "No se pudo guardar el usuario: " + detalle);
+	   		return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
 	   	}
+	   }
+
+	   /**
+	    * Hibernate/Spring suelen envolver el error real (por ejemplo una violación
+	    * de @NotBlank/@Email/@Size en la entidad User) dentro de excepciones
+	    * genéricas como TransactionSystemException ("Could not commit JPA
+	    * transaction"), que no dicen nada útil por sí solas. Este método baja por
+	    * la cadena de "causas" hasta encontrar la violación de validación
+	    * concreta (o, si no la encuentra, el mensaje más profundo disponible).
+	    */
+	   private String describirCausaRaiz(Throwable e) {
+	   	Throwable actual = e;
+	   	while (actual != null) {
+	   		if (actual instanceof jakarta.validation.ConstraintViolationException cve) {
+	   			StringBuilder detalle = new StringBuilder();
+	   			cve.getConstraintViolations().forEach(v ->
+	   				detalle.append(v.getPropertyPath()).append(" ").append(v.getMessage()).append("; "));
+	   			return detalle.toString();
+	   		}
+	   		if (actual.getCause() == null || actual.getCause() == actual) {
+	   			return actual.getClass().getSimpleName() + ": " + actual.getMessage();
+	   		}
+	   		actual = actual.getCause();
+	   	}
+	   	return e.getMessage();
 	   }
 
     @PutMapping("/{id}/password")

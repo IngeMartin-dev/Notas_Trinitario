@@ -18,6 +18,10 @@
         } @else {
           <h2>Verificación en dos pasos</h2>
           <p>Enviamos un código de 6 dígitos a {{ twoFactorEmailHint() }}</p>
+          <p class="spam-hint">
+            <span class="material-icons">info</span>
+            Si no lo ves en unos minutos, revisa tu carpeta de spam o correo no deseado.
+          </p>
         }
       </div>
 
@@ -104,7 +108,7 @@
                 <span class="loading-spinner"></span>
               }
             </button>
-            <button type="button" class="password-toggle" style="margin-top:8px;width:100%;text-align:center;" (click)="cancelTwoFactor()">
+            <button type="button" class="secondary-link-btn" (click)="cancelTwoFactor()">
               Volver a intentar con otra cuenta
             </button>
           </form>

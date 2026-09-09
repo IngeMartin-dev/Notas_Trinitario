@@ -873,12 +873,18 @@ export class Settings implements OnInit, OnDestroy {
           console.error('❌ Full error object:', JSON.stringify(error, null, 2));
           
           let errorMsg = 'Error al subir la imagen. ';
+          const backendMessage = error?.error?.error || error?.error?.message;
           if (error.status === 0) {
             errorMsg += 'No se puede conectar con el servidor. Verifica que el servidor esté ejecutándose.';
           } else if (error.status === 404) {
             errorMsg += 'El endpoint de la API no existe.';
           } else if (error.status === 401) {
-            errorMsg += 'No tienes permisos para realizar esta acción.';
+            errorMsg += 'No tienes permisos para realizar esta acción (revisa si tu sesión sigue activa).';
+          } else if (backendMessage) {
+            // Usa el motivo real que ahora devuelve el backend en vez de un
+            // mensaje genérico (ej. "Usuario no encontrado", "El archivo debe
+            // ser una imagen", detalles de validación, etc.)
+            errorMsg += backendMessage;
           } else if (error.status === 500) {
             errorMsg += 'Error interno del servidor.';
           } else {

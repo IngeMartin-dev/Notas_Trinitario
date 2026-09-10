@@ -5,7 +5,6 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import java.util.Collection;
-import java.util.Collections;
 import java.time.LocalDateTime;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -87,6 +86,15 @@ public class User implements UserDetails {
     @Column(name = "privacy_accepted_at")
     private LocalDateTime privacyAcceptedAt;
 
+    // Rol ADMIN "extra": se puede sumar a cualquier usuario (padre, profesor,
+    // etc.) SIN quitarle su rol principal (`role`). Pensado para
+    // "Configuración de Año" → recuadro de roles, donde un admin puede darle
+    // acceso de administrador a alguien más, sin importar el rol que ya
+    // tenga. Se guarda aparte de `role` (que sigue siendo el rol principal)
+    // para no romper nada que ya dependa de un único rol por usuario.
+    @Column(name = "additional_admin")
+    private Boolean additionalAdmin = false;
+
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
@@ -144,6 +152,9 @@ public class User implements UserDetails {
     public LocalDateTime getPrivacyAcceptedAt() { return privacyAcceptedAt; }
     public void setPrivacyAcceptedAt(LocalDateTime privacyAcceptedAt) { this.privacyAcceptedAt = privacyAcceptedAt; }
 
+    public Boolean getAdditionalAdmin() { return additionalAdmin != null && additionalAdmin; }
+    public void setAdditionalAdmin(Boolean additionalAdmin) { this.additionalAdmin = additionalAdmin; }
+
     public String getFcmToken() { return fcmToken; }
     public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
 
@@ -157,8 +168,17 @@ public class User implements UserDetails {
     @JsonIgnore
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        if (role == null) return Collections.emptyList();
-        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.getName()));
+        List<GrantedAuthority> authorities = new ArrayList<>();
+        if (role != null) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getName()));
+        }
+        // Rol ADMIN "extra" sumado (ver `additionalAdmin`): se agrega la
+        // autoridad ROLE_ADMIN además de la del rol principal, sin
+        // reemplazarla. Se evita duplicarla si el rol principal YA es ADMIN.
+        if (getAdditionalAdmin() && (role == null || !"ADMIN".equalsIgnoreCase(role.getName()))) {
+            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
+        }
+        return authorities;
     }
 
     @JsonIgnore

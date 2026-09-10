@@ -205,7 +205,7 @@ public class AiController {
         final double temperature = request.get("temperature") != null
                 ? Double.parseDouble(request.get("temperature").toString()) : 0.4;
         final int maxTokens = request.get("max_tokens") != null
-                ? Integer.parseInt(request.get("max_tokens").toString()) : 8192;
+                ? Integer.parseInt(request.get("max_tokens").toString()) : 4096;
 
         final String jsonPayload = buildRequestBody(prompt, true, temperature, maxTokens);
 
@@ -249,7 +249,7 @@ public class AiController {
      *  petición se quedaba esperando para siempre y en el frontend parecía
      *  que "no generaba nunca". Con esto, si no llega nada en ese tiempo se
      *  corta y se informa el error al usuario en vez de dejarlo esperando. */
-    private static final int STREAM_READ_TIMEOUT_MS = 90000;
+        private static final int STREAM_READ_TIMEOUT_MS = 60000;
 
     /** Escribe un evento SSE de error, en el mismo formato que ya sabe leer
      *  el frontend ({"error": "..."}). Nunca lanza excepción. */
@@ -300,14 +300,24 @@ public class AiController {
 
             int status = conn.getResponseCode();
             if (status != HttpURLConnection.HTTP_OK) {
-                String msg;
+                String body = "";
                 try (InputStream err = conn.getErrorStream()) {
-                    String body = err != null ? new String(err.readAllBytes(), StandardCharsets.UTF_8) : "";
-                    msg = "Mistral respondió con error HTTP " + status
-                        + (body.isBlank() ? "" : (": " + body));
+                    body = err != null ? new String(err.readAllBytes(), StandardCharsets.UTF_8) : "";
+                } catch (Exception ignored) {}
+
+                String userMsg;
+                if (status == 429) {
+                    userMsg = "Límite de solicitudes alcanzado. Espera unos minutos e intenta de nuevo.";
+                } else if (status == 401) {
+                    userMsg = "API key inválida. Contacta al administrador.";
+                } else if (status == 503) {
+                    userMsg = "Servicio de IA no disponible temporalmente. Intenta más tarde.";
+                } else {
+                    userMsg = "Error del servicio (HTTP " + status + "). Intenta de nuevo.";
                 }
-                log.warn("[IA] Error de Mistral al generar el plan: {}", msg);
-                writeSseError(out, msg);
+
+                log.warn("[IA] Error de Mistral HTTP {}: {}", status, body.isBlank() ? userMsg : body);
+                writeSseError(out, userMsg);
                 return;
             }
 

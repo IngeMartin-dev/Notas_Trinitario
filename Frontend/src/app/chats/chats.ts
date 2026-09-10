@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { ChatService, ChatContactDto, ChatMessageDto, ChatMessageType } from '../services/chat.service';
 import { FirebasePushService } from '../services/firebase-push.service';
 
+import { API_BASE_URL } from '../config/api-base';
 interface ChatContact extends ChatContactDto {
   lastMessageTime: string;
   isOnline: boolean;
@@ -334,7 +335,7 @@ export class Chats implements OnInit, OnDestroy {
   getCorrectImageUrl(imagePath: string | null | undefined): string {
     if (!imagePath) return '';
     if (imagePath.startsWith('http')) return imagePath;
-    return `http://localhost:8080${imagePath}`;
+    return `${API_BASE_URL}${imagePath}`;
   }
 
   trackByChatId(index: number, chat: ChatContact): number {

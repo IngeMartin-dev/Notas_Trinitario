@@ -70,6 +70,63 @@
     }
   </div>
 
+  <!-- Roles y permisos: todos los usuarios, por pestaña, sumar rol Admin -->
+  <div class="syc-card">
+    <h3><span class="material-icons">admin_panel_settings</span> Roles y permisos</h3>
+    <p class="syc-hint">
+      Todos los usuarios, agrupados por su rol. Desde Padres o Profesores puedes sumarle el rol de
+      Administrador a alguien sin quitarle el que ya tiene.
+    </p>
+
+    <div class="syc-role-tabs">
+      <button type="button" class="syc-role-tab" [class.active]="activeRoleTab === 'PARENT'" (click)="setRoleTab('PARENT')">
+        Padres <span class="syc-count-badge">{{ countPorRol('PARENT') }}</span>
+      </button>
+      <button type="button" class="syc-role-tab" [class.active]="activeRoleTab === 'TEACHER'" (click)="setRoleTab('TEACHER')">
+        Profesores <span class="syc-count-badge">{{ countPorRol('TEACHER') }}</span>
+      </button>
+      <button type="button" class="syc-role-tab" [class.active]="activeRoleTab === 'ADMIN'" (click)="setRoleTab('ADMIN')">
+        Administradores <span class="syc-count-badge">{{ countPorRol('ADMIN') }}</span>
+      </button>
+    </div>
+
+    @if (loadingGestion) {
+      <p class="syc-hint">Cargando...</p>
+    }
+
+    @if (!loadingGestion && usuariosDeLaPestanaActiva.length === 0) {
+      <p class="syc-empty">No hay usuarios en esta pestaña.</p>
+    }
+
+    @if (!loadingGestion && usuariosDeLaPestanaActiva.length > 0) {
+      <div class="syc-users-list">
+        @for (user of usuariosDeLaPestanaActiva; track user.id) {
+          <div class="syc-user-row">
+            <div class="syc-user-info">
+              <strong>{{ user.name }} {{ user.surname }}</strong>
+              <span>{{ user.username }} · {{ user.email }}</span>
+            </div>
+            @if (user.roleName === 'ADMIN') {
+              <span class="syc-count-badge">Administrador</span>
+            } @else if (user.additionalAdmin) {
+              <button class="syc-danger-btn syc-role-toggle-btn" [disabled]="togglingAdminExtra[user.id]"
+                      (click)="toggleAdminExtra(user)">
+                <span class="material-icons">remove_moderator</span>
+                @if (togglingAdminExtra[user.id]) { ... } @else { Quitar rol de Admin }
+              </button>
+            } @else {
+              <button class="syc-assign-btn syc-role-toggle-btn" [disabled]="togglingAdminExtra[user.id]"
+                      (click)="toggleAdminExtra(user)">
+                <span class="material-icons">add_moderator</span>
+                @if (togglingAdminExtra[user.id]) { ... } @else { Dar rol de Admin }
+              </button>
+            }
+          </div>
+        }
+      </div>
+    }
+  </div>
+
   <!-- Usuarios sin rol -->
   <div class="syc-card">
     <h3><span class="material-icons">person_add</span> Usuarios sin rol</h3>
@@ -154,24 +211,9 @@
 
       <div class="syc-fullscreen-body">
         @if (currentWizardGradeNumber === 1) {
-          <!-- Paso especial: alta de estudiantes nuevos de Grado 1 -->
-          <div class="syc-new-student-form">
-            <input type="text" placeholder="Nombre" [(ngModel)]="newStudentForm.name">
-            <input type="text" placeholder="Apellido" [(ngModel)]="newStudentForm.surname">
-            <input type="text" placeholder="Documento de identidad" [(ngModel)]="newStudentForm.documentNumber">
-            <div class="syc-salon-toggle">
-              <button type="button" class="salon-btn" [class.active]="newStudentForm.classGroup === 'A'" (click)="newStudentForm.classGroup = 'A'">A</button>
-              <button type="button" class="salon-btn" [class.active]="newStudentForm.classGroup === 'B'" (click)="newStudentForm.classGroup = 'B'">B</button>
-            </div>
-            <button class="syc-save-btn" [disabled]="addingStudent" (click)="agregarEstudianteNuevo()">
-              <span class="material-icons">person_add</span>
-              @if (addingStudent) { Agregando... } @else { Agregar }
-            </button>
-          </div>
-          @if (addStudentError) {
-            <p class="syc-message">{{ addStudentError }}</p>
-          }
-
+          <!-- Paso especial: alta de estudiantes nuevos de Grado 1. La lista
+               va PRIMERO y crece hacia abajo; el formulario + botón "Agregar"
+               quedan siempre al final, debajo del último estudiante añadido. -->
           @if (newStudentsGrade1.length === 0) {
             <p class="syc-empty">Todavía no has agregado estudiantes nuevos a Grado 1º.</p>
           } @else {
@@ -189,6 +231,23 @@
                 </div>
               }
             </div>
+          }
+
+          <div class="syc-new-student-form">
+            <input type="text" placeholder="Nombre" [(ngModel)]="newStudentForm.name">
+            <input type="text" placeholder="Apellido" [(ngModel)]="newStudentForm.surname">
+            <input type="text" placeholder="Documento de identidad" [(ngModel)]="newStudentForm.documentNumber">
+            <div class="syc-salon-toggle">
+              <button type="button" class="salon-btn" [class.active]="newStudentForm.classGroup === 'A'" (click)="newStudentForm.classGroup = 'A'">A</button>
+              <button type="button" class="salon-btn" [class.active]="newStudentForm.classGroup === 'B'" (click)="newStudentForm.classGroup = 'B'">B</button>
+            </div>
+            <button class="syc-save-btn" [disabled]="addingStudent" (click)="agregarEstudianteNuevo()">
+              <span class="material-icons">person_add</span>
+              @if (addingStudent) { Agregando... } @else { Agregar }
+            </button>
+          </div>
+          @if (addStudentError) {
+            <p class="syc-message">{{ addStudentError }}</p>
           }
         } @else {
           <!-- Pasos Grado 2 a 11: organizar promovidos -->

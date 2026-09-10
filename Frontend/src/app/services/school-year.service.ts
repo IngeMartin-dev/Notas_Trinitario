@@ -32,6 +32,22 @@ export interface RoleDto {
   name: string;
 }
 
+/** Usuario para el recuadro "Roles y permisos" de Configuración de Año:
+ *  a diferencia de UsuarioSinRol, este SÍ incluye a todos los usuarios que
+ *  ya tienen un rol (para poder listarlos en sus pestañas Padres /
+ *  Profesores / Administradores), más si tienen el rol ADMIN "extra"
+ *  sumado además de su rol principal. */
+export interface UsuarioGestionRol {
+  id: number;
+  name: string;
+  surname: string;
+  username: string;
+  email: string;
+  roleId: number;
+  roleName: string; // 'ADMIN' | 'TEACHER' | 'PARENT'
+  additionalAdmin: boolean;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SchoolYearService {
   private readonly http = inject(HttpClient);
@@ -76,6 +92,16 @@ export class SchoolYearService {
 
   asignarRol(userId: number, roleId: number): Observable<any> {
     return this.http.put(`${this.USERS_BASE}/${userId}/role`, { roleId });
+  }
+
+  getUsuariosGestionRoles(): Observable<UsuarioGestionRol[]> {
+    return this.http.get<UsuarioGestionRol[]>(`${this.USERS_BASE}/gestion-roles`);
+  }
+
+  /** Suma o quita el rol ADMIN "extra" a un usuario, sin tocar su rol
+   *  principal (padre/profesor/admin siguen siendo lo que ya eran). */
+  toggleAdminExtra(userId: number, enable: boolean): Observable<any> {
+    return this.http.put(`${this.USERS_BASE}/${userId}/admin-extra`, { enable });
   }
 
   fechaAlcanzada(): Observable<{ alcanzada: boolean }> {

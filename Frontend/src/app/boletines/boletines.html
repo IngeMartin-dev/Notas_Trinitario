@@ -265,7 +265,7 @@
             @if (selectedDirectorSignature) {
               <div class="selected-sig-preview">
                 <span>Firma seleccionada:</span>
-                <img [src]="'http://localhost:8080' + selectedDirectorSignature" [alt]="'Firma director'" class="sig-thumb" (error)="onImageError($event)">
+                <img [src]="apiBaseUrl + selectedDirectorSignature" [alt]="'Firma director'" class="sig-thumb" (error)="onImageError($event)">
                 <button class="btn-clear-sig" (click)="selectedDirectorSignature = undefined">✕</button>
               </div>
             }
@@ -372,7 +372,7 @@
             @for (sig of signatures; track sig.path) {
               <div class="sig-card" [class.selected]="selectedDirectorSignature === sig.path" (click)="selectedDirectorSignature = sig.path">
                 <div class="sig-img">
-                  <img [src]="'http://localhost:8080' + sig.path" [alt]="sig.name" (error)="onImageError($event)">
+                  <img [src]="apiBaseUrl + sig.path" [alt]="sig.name" (error)="onImageError($event)">
    <!-- VISTA DE BORRADORES -->
    @if (showDraftsView) {
      <div class="drafts-view fade-in">

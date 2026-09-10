@@ -365,4 +365,49 @@ public class UserController {
         return ResponseEntity.ok(Map.of("message", "Rol asignado correctamente"));
     }
 
+    // ── Recuadro "Roles y permisos" de Configuración de Año ──
+    // Lista TODOS los usuarios con rol (a diferencia de /sin-rol), agrupables
+    // en el frontend por pestaña Padres / Profesores / Administradores, más
+    // si ya tienen el rol ADMIN "extra" sumado (ver `additionalAdmin`).
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @GetMapping("/gestion-roles")
+    public ResponseEntity<?> usuariosGestionRoles() {
+        List<Map<String, Object>> dto = StreamSupport.stream(userRepository.findAll().spliterator(), false)
+                .filter(u -> u.getRole() != null)
+                .map(u -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", u.getId());
+                    m.put("name", u.getName());
+                    m.put("surname", u.getSurname());
+                    m.put("username", u.getUsername());
+                    m.put("email", u.getEmail());
+                    m.put("roleId", u.getRole().getId());
+                    m.put("roleName", u.getRole().getName());
+                    m.put("additionalAdmin", u.getAdditionalAdmin());
+                    return m;
+                }).collect(Collectors.toList());
+        return ResponseEntity.ok(dto);
+    }
+
+    // Suma (o quita) el rol ADMIN "extra" a un usuario, SIN tocar su rol
+    // principal. body: { "enable": true|false }
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
+    @PutMapping("/{id}/admin-extra")
+    public ResponseEntity<?> toggleAdminExtra(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        Optional<User> userOpt = userRepository.findById(id);
+        if (userOpt.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Usuario no encontrado"));
+        }
+        boolean enable = Boolean.TRUE.equals(body.get("enable"));
+
+        User user = userOpt.get();
+        user.setAdditionalAdmin(enable);
+        userRepository.save(user);
+
+        return ResponseEntity.ok(Map.of(
+                "message", enable ? "Rol de administrador sumado correctamente" : "Rol de administrador extra removido",
+                "additionalAdmin", user.getAdditionalAdmin()
+        ));
+    }
+
 }

@@ -2,6 +2,7 @@ import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 
 import { AuthService } from '../services/auth.service';
+import { API_BASE_URL } from '../config/api-base';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { ThemeService } from '../services/theme.service';
@@ -741,7 +742,7 @@ export class Settings implements OnInit, OnDestroy {
     // Construct full URL if it's a relative path - use backend port 8080
     let fullImageUrl = profilePicturePath;
     if (profilePicturePath && !profilePicturePath.startsWith('http')) {
-      fullImageUrl = `http://localhost:8080${profilePicturePath}`;
+      fullImageUrl = `${API_BASE_URL}${profilePicturePath}`;
       console.log('🖼️ Constructed full image URL with backend port:', fullImageUrl);
     }
     
@@ -768,7 +769,7 @@ export class Settings implements OnInit, OnDestroy {
     }
     
     // Construct full URL for relative paths using backend port 8080
-    const fullUrl = `http://localhost:8080${imagePath}`;
+    const fullUrl = `${API_BASE_URL}${imagePath}`;
     console.log('🔧 Converted image URL:', imagePath, '->', fullUrl);
     return fullUrl;
   }

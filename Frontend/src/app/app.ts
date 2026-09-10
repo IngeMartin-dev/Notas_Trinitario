@@ -17,6 +17,7 @@ import { ThemeService } from './services/theme.service';
 import { Dialog } from './dialog/dialog';
 import { SchoolYearService } from './services/school-year.service';
 
+import { API_BASE_URL } from './config/api-base';
 @Component({
   selector: 'app-root',
   imports: [RouterOutlet, RouterModule, MessagesDropdownComponent, NotificationDetailsComponent, GenerationNotifications, Dialog],
@@ -484,7 +485,10 @@ export class App implements OnInit, OnDestroy {
   }
 
   isAdmin(): boolean {
-    return this.getRoleName() === 'ADMIN';
+    // El rol ADMIN "extra" (ver Configuración de Año → Roles y permisos) da
+    // acceso a todo lo de admin SIN quitarle a la persona su rol principal;
+    // por eso también cuenta aquí, sumado al chequeo de rol normal.
+    return this.getRoleName() === 'ADMIN' || !!this.currentUser()?.additionalAdmin;
   }
 
   isTeacherOrDirector(): boolean {
@@ -543,6 +547,6 @@ export class App implements OnInit, OnDestroy {
     }
     
     // Construct full URL for relative paths using backend port 8080
-    return `http://localhost:8080${imagePath}`;
+    return `${API_BASE_URL}${imagePath}`;
   }
 }

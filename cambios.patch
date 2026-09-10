@@ -1,0 +1,803 @@
+diff --git a/Frontend/src/app/api-rewrite.interceptor.ts b/Frontend/src/app/api-rewrite.interceptor.ts
+new file mode 100644
+index 0000000..568fb08
+--- /dev/null
++++ b/Frontend/src/app/api-rewrite.interceptor.ts
+@@ -0,0 +1,23 @@
++import { HttpInterceptorFn } from '@angular/common/http';
++import { API_BASE_URL, LOCALHOST_API_PREFIX } from './config/api-base';
++
++/**
++ * Todo el código sigue armando las URLs de la API con el prefijo fijo
++ * "http://localhost:8080" (no se tocó ningún servicio/componente). Este
++ * interceptor es el único lugar que sabe que, si la app se está sirviendo
++ * desde un DevTunnel (o cualquier host que no sea localhost), ese prefijo
++ * hay que cambiarlo por la URL real del backend — ver `config/api-base.ts`
++ * para el detalle de cómo se calcula.
++ *
++ * En localhost, API_BASE_URL === LOCALHOST_API_PREFIX, así que el
++ * `replace` no cambia nada y las peticiones siguen exactamente igual que
++ * antes.
++ */
++export const apiRewriteInterceptor: HttpInterceptorFn = (req, next) => {
++  if (API_BASE_URL === LOCALHOST_API_PREFIX || !req.url.startsWith(LOCALHOST_API_PREFIX)) {
++    return next(req);
++  }
++
++  const nuevaUrl = API_BASE_URL + req.url.slice(LOCALHOST_API_PREFIX.length);
++  return next(req.clone({ url: nuevaUrl }));
++};
+diff --git a/Frontend/src/app/app.config.ts b/Frontend/src/app/app.config.ts
+index 9fe27e8..ee40037 100644
+--- a/Frontend/src/app/app.config.ts
++++ b/Frontend/src/app/app.config.ts
+@@ -5,15 +5,16 @@ import { provideHttpClient, withInterceptors } from '@angular/common/http';
+ import { routes } from './app.routes';
+ import { authInterceptor } from './auth-interceptor';
+ import { retryBackoffInterceptor } from './retry-backoff.interceptor';
++import { apiRewriteInterceptor } from './api-rewrite.interceptor';
+ 
+ export const appConfig: ApplicationConfig = {
+   providers: [
+     provideBrowserGlobalErrorListeners(),
+     provideZoneChangeDetection({ eventCoalescing: true }),
+     provideRouter(routes),
+-    // Orden importa: retryBackoffInterceptor debe ir antes que
+-    // authInterceptor para que también pueda reintentar la petición ya con
+-    // el token renovado si authInterceptor lo actualizó tras un 401.
+-    provideHttpClient(withInterceptors([retryBackoffInterceptor, authInterceptor]))
++    // Orden importa: apiRewriteInterceptor va PRIMERO para que las
++    // peticiones ya salgan con la URL correcta (localhost o devtunnel)
++    // antes de que retryBackoffInterceptor/authInterceptor las procesen.
++    provideHttpClient(withInterceptors([apiRewriteInterceptor, retryBackoffInterceptor, authInterceptor]))
+   ]
+ };
+\ No newline at end of file
+diff --git a/Frontend/src/app/app.css b/Frontend/src/app/app.css
+index 1337d3c..d60e44b 100644
+--- a/Frontend/src/app/app.css
++++ b/Frontend/src/app/app.css
+@@ -176,7 +176,25 @@
+ 
+ .nav-menu {
+   flex: 1;
++  min-height: 0; /* necesario para que overflow-y funcione dentro de un flex column */
+   padding: 20px 0;
++  overflow-y: auto;
++  overflow-x: hidden;
++  scrollbar-width: thin;
++  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
++}
++
++.nav-menu::-webkit-scrollbar {
++  width: 6px;
++}
++
++.nav-menu::-webkit-scrollbar-thumb {
++  background: rgba(255, 255, 255, 0.35);
++  border-radius: 3px;
++}
++
++.nav-menu::-webkit-scrollbar-track {
++  background: transparent;
+ }
+ 
+ .nav-menu ul {
+diff --git a/Frontend/src/app/app.ts b/Frontend/src/app/app.ts
+index a92ad88..7cc285c 100644
+--- a/Frontend/src/app/app.ts
++++ b/Frontend/src/app/app.ts
+@@ -17,6 +17,7 @@ import { ThemeService } from './services/theme.service';
+ import { Dialog } from './dialog/dialog';
+ import { SchoolYearService } from './services/school-year.service';
+ 
++import { API_BASE_URL } from './config/api-base';
+ @Component({
+   selector: 'app-root',
+   imports: [RouterOutlet, RouterModule, MessagesDropdownComponent, NotificationDetailsComponent, GenerationNotifications, Dialog],
+@@ -484,7 +485,10 @@ export class App implements OnInit, OnDestroy {
+   }
+ 
+   isAdmin(): boolean {
+-    return this.getRoleName() === 'ADMIN';
++    // El rol ADMIN "extra" (ver Configuración de Año → Roles y permisos) da
++    // acceso a todo lo de admin SIN quitarle a la persona su rol principal;
++    // por eso también cuenta aquí, sumado al chequeo de rol normal.
++    return this.getRoleName() === 'ADMIN' || !!this.currentUser()?.additionalAdmin;
+   }
+ 
+   isTeacherOrDirector(): boolean {
+@@ -543,6 +547,6 @@ export class App implements OnInit, OnDestroy {
+     }
+     
+     // Construct full URL for relative paths using backend port 8080
+-    return `http://localhost:8080${imagePath}`;
++    return `${API_BASE_URL}${imagePath}`;
+   }
+ }
+\ No newline at end of file
+diff --git a/Frontend/src/app/boletines/boletines.html b/Frontend/src/app/boletines/boletines.html
+index ba88c7e..007fe4e 100644
+--- a/Frontend/src/app/boletines/boletines.html
++++ b/Frontend/src/app/boletines/boletines.html
+@@ -265,7 +265,7 @@
+             @if (selectedDirectorSignature) {
+               <div class="selected-sig-preview">
+                 <span>Firma seleccionada:</span>
+-                <img [src]="'http://localhost:8080' + selectedDirectorSignature" [alt]="'Firma director'" class="sig-thumb" (error)="onImageError($event)">
++                <img [src]="apiBaseUrl + selectedDirectorSignature" [alt]="'Firma director'" class="sig-thumb" (error)="onImageError($event)">
+                 <button class="btn-clear-sig" (click)="selectedDirectorSignature = undefined">✕</button>
+               </div>
+             }
+@@ -372,7 +372,7 @@
+             @for (sig of signatures; track sig.path) {
+               <div class="sig-card" [class.selected]="selectedDirectorSignature === sig.path" (click)="selectedDirectorSignature = sig.path">
+                 <div class="sig-img">
+-                  <img [src]="'http://localhost:8080' + sig.path" [alt]="sig.name" (error)="onImageError($event)">
++                  <img [src]="apiBaseUrl + sig.path" [alt]="sig.name" (error)="onImageError($event)">
+    <!-- VISTA DE BORRADORES -->
+    @if (showDraftsView) {
+      <div class="drafts-view fade-in">
+diff --git a/Frontend/src/app/boletines/boletines.ts b/Frontend/src/app/boletines/boletines.ts
+index 772c6d8..6a2b6b8 100644
+--- a/Frontend/src/app/boletines/boletines.ts
++++ b/Frontend/src/app/boletines/boletines.ts
+@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
+ import { HttpClient } from '@angular/common/http';
+ import { Subscription } from 'rxjs';
+ import { GenerationService, GenerationJob } from '../services/generation.service';
++import { API_BASE_URL } from '../config/api-base';
+ import { DialogService } from '../services/dialog.service';
+ 
+ interface Student {
+@@ -36,6 +37,8 @@ const VALORACION_ACUDIENTE_SUBJECT = 'Valoracion Acudiente';
+   styleUrl: './boletines.css'
+ })
+ export class Boletines implements OnInit, OnDestroy {
++  /** Para las firmas (<img> en el template), que no pasan por el interceptor HTTP. */
++  readonly apiBaseUrl = API_BASE_URL;
+   grades: string[] = ['Grado 1º', 'Grado 2º', 'Grado 3º', 'Grado 4º', 'Grado 5º', 'Grado 6º', 'Grado 7º', 'Grado 8º', 'Grado 9º', 'Grado 10º', 'Grado 11º'];
+   classrooms: string[] = ['Salon A', 'Salon B'];
+ 
+diff --git a/Frontend/src/app/chats/chats.ts b/Frontend/src/app/chats/chats.ts
+index 4d0f072..ebc4e7c 100644
+--- a/Frontend/src/app/chats/chats.ts
++++ b/Frontend/src/app/chats/chats.ts
+@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
+ import { ChatService, ChatContactDto, ChatMessageDto, ChatMessageType } from '../services/chat.service';
+ import { FirebasePushService } from '../services/firebase-push.service';
+ 
++import { API_BASE_URL } from '../config/api-base';
+ interface ChatContact extends ChatContactDto {
+   lastMessageTime: string;
+   isOnline: boolean;
+@@ -334,7 +335,7 @@ export class Chats implements OnInit, OnDestroy {
+   getCorrectImageUrl(imagePath: string | null | undefined): string {
+     if (!imagePath) return '';
+     if (imagePath.startsWith('http')) return imagePath;
+-    return `http://localhost:8080${imagePath}`;
++    return `${API_BASE_URL}${imagePath}`;
+   }
+ 
+   trackByChatId(index: number, chat: ChatContact): number {
+diff --git a/Frontend/src/app/config/api-base.ts b/Frontend/src/app/config/api-base.ts
+new file mode 100644
+index 0000000..5b965e8
+--- /dev/null
++++ b/Frontend/src/app/config/api-base.ts
+@@ -0,0 +1,71 @@
++/**
++ * Calcula en tiempo de ejecución a qué backend le deben apuntar las
++ * peticiones API.
++ *
++ * Todo el código del frontend sigue escrito con "http://localhost:8080"
++ * tal cual (no se tocó ni un archivo de servicio/componente — así lo pidió
++ * el usuario: "sin borrar la del localhost"). Lo que hace este archivo es
++ * calcular, UNA sola vez al cargar la app, la URL real a la que hay que
++ * mandar esas peticiones, y `api-rewrite.interceptor.ts` se encarga de
++ * reemplazar el prefijo "http://localhost:8080" por esa URL antes de que
++ * salga la petición.
++ *
++ * Casos:
++ *   1) Abres la app en http://localhost:4200 (o 127.0.0.1)
++ *        → sigue pegándole a http://localhost:8080 (sin cambios).
++ *   2) Abres la app desde un DevTunnel, p.ej.
++ *        https://rq4cngtm-4200.use.devtunnels.ms
++ *      → detecta el patrón "<id>-<puerto>.<resto>.devtunnels.ms" y arma
++ *        la URL del backend cambiando SOLO el puerto (4200 → 8080),
++ *        manteniendo el mismo id de túnel y el mismo host:
++ *        https://rq4cngtm-8080.use.devtunnels.ms
++ *   3) Cualquier otro caso (dominio propio, IP de LAN, etc.) → usa el
++ *      mismo protocolo/host donde se sirve el frontend, puerto 8080. Esto
++ *      cubre por ejemplo abrir la app desde el celular con la IP de tu PC.
++ *
++ * Si el patrón automático no calza con tu túnel, se puede forzar la URL a
++ * mano desde la consola del navegador ANTES de recargar la página:
++ *   localStorage.setItem('apiBaseOverride', 'https://mi-tunel-8080.algo.ms');
++ * y para volver a automático: localStorage.removeItem('apiBaseOverride');
++ */
++
++const LOCALHOST_API = 'http://localhost:8080';
++
++/**
++ * Forzar la URL del backend a mano mientras se prueba este DevTunnel en
++ * concreto. Se usa SOLO cuando la app NO se abre desde localhost (así
++ * "localhost" sigue intacto, tal como se pidió). Para volver a que se
++ * calcule solo con el patrón automático de DevTunnels, poner en `null`.
++ */
++const MANUAL_OVERRIDE: string | null = 'https://rq4cngtm-8080.use.devtunnels.ms';
++
++function calcularApiBase(): string {
++  if (typeof window === 'undefined') return LOCALHOST_API;
++
++  const { hostname, protocol } = window.location;
++  if (hostname === 'localhost' || hostname === '127.0.0.1') {
++    return LOCALHOST_API;
++  }
++
++  if (MANUAL_OVERRIDE) return MANUAL_OVERRIDE.replace(/\/$/, '');
++
++  const override = window.localStorage?.getItem('apiBaseOverride');
++  if (override) return override.replace(/\/$/, '');
++
++  // Patrón DevTunnels: <id>-<puerto>.<region>.devtunnels.ms
++  const matchDevTunnel = hostname.match(/^(.+)-(\d+)((?:\.[a-z0-9-]+)*\.devtunnels\.ms)$/i);
++  if (matchDevTunnel) {
++    const [, idTunel, , resto] = matchDevTunnel;
++    return `${protocol}//${idTunel}-8080${resto}`;
++  }
++
++  // Cualquier otro host (IP de LAN, dominio propio, etc.): mismo host,
++  // puerto 8080.
++  return `${protocol}//${hostname}:8080`;
++}
++
++/** URL base del backend, calculada una sola vez al cargar el módulo. */
++export const API_BASE_URL = calcularApiBase();
++
++/** Prefijo "viejo" que sigue escrito tal cual en todo el resto del código. */
++export const LOCALHOST_API_PREFIX = LOCALHOST_API;
+diff --git a/Frontend/src/app/dashboard/dashboard.ts b/Frontend/src/app/dashboard/dashboard.ts
+index 43c7619..3150950 100644
+--- a/Frontend/src/app/dashboard/dashboard.ts
++++ b/Frontend/src/app/dashboard/dashboard.ts
+@@ -8,6 +8,7 @@ import { NotificationService } from '../services/notification.service';
+ import { GradesUpdateService } from '../services/grades-update.service';
+ import { DialogService } from '../services/dialog.service';
+ 
++import { API_BASE_URL } from '../config/api-base';
+ interface Activity {
+   icon: string;
+   description: string;
+@@ -660,7 +661,7 @@ export class Dashboard implements OnInit {
+     }
+     
+     // Construct full URL for relative paths using backend port 8080
+-    const fullUrl = `http://localhost:8080${imagePath}`;
++    const fullUrl = `${API_BASE_URL}${imagePath}`;
+     console.log('🔧 Dashboard - Converted image URL:', imagePath, '->', fullUrl);
+     return fullUrl;
+   }
+diff --git a/Frontend/src/app/school-year-config/school-year-config.css b/Frontend/src/app/school-year-config/school-year-config.css
+index 39c8dca..337c553 100644
+--- a/Frontend/src/app/school-year-config/school-year-config.css
++++ b/Frontend/src/app/school-year-config/school-year-config.css
+@@ -275,6 +275,53 @@
+ 
+ .syc-assign-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+ 
++/* Recuadro "Roles y permisos": pestañas Padres / Profesores / Administradores */
++.syc-role-tabs {
++  display: flex;
++  gap: 8px;
++  margin-bottom: 14px;
++  flex-wrap: wrap;
++}
++
++.syc-role-tab {
++  display: flex;
++  align-items: center;
++  gap: 6px;
++  background: var(--surface-2);
++  border: 1px solid var(--border);
++  border-radius: 999px;
++  padding: 7px 14px;
++  font-size: 0.82rem;
++  font-weight: 600;
++  color: var(--text-3);
++  cursor: pointer;
++  transition: background 0.15s, color 0.15s, border-color 0.15s;
++}
++
++.syc-role-tab:hover { color: var(--text-1); }
++
++.syc-role-tab.active {
++  background: var(--brand);
++  border-color: var(--brand);
++  color: #fff;
++}
++
++.syc-role-tab .syc-count-badge {
++  background: rgba(255, 255, 255, 0.25);
++}
++
++.syc-role-tab:not(.active) .syc-count-badge {
++  background: var(--surface);
++}
++
++.syc-role-toggle-btn {
++  display: flex;
++  align-items: center;
++  gap: 6px;
++}
++
++.syc-role-toggle-btn .material-icons { font-size: 1rem; }
++
+ .syc-modal-overlay {
+   position: fixed;
+   inset: 0;
+diff --git a/Frontend/src/app/school-year-config/school-year-config.html b/Frontend/src/app/school-year-config/school-year-config.html
+index f883ad9..e71a8c8 100644
+--- a/Frontend/src/app/school-year-config/school-year-config.html
++++ b/Frontend/src/app/school-year-config/school-year-config.html
+@@ -70,6 +70,63 @@
+     }
+   </div>
+ 
++  <!-- Roles y permisos: todos los usuarios, por pestaña, sumar rol Admin -->
++  <div class="syc-card">
++    <h3><span class="material-icons">admin_panel_settings</span> Roles y permisos</h3>
++    <p class="syc-hint">
++      Todos los usuarios, agrupados por su rol. Desde Padres o Profesores puedes sumarle el rol de
++      Administrador a alguien sin quitarle el que ya tiene.
++    </p>
++
++    <div class="syc-role-tabs">
++      <button type="button" class="syc-role-tab" [class.active]="activeRoleTab === 'PARENT'" (click)="setRoleTab('PARENT')">
++        Padres <span class="syc-count-badge">{{ countPorRol('PARENT') }}</span>
++      </button>
++      <button type="button" class="syc-role-tab" [class.active]="activeRoleTab === 'TEACHER'" (click)="setRoleTab('TEACHER')">
++        Profesores <span class="syc-count-badge">{{ countPorRol('TEACHER') }}</span>
++      </button>
++      <button type="button" class="syc-role-tab" [class.active]="activeRoleTab === 'ADMIN'" (click)="setRoleTab('ADMIN')">
++        Administradores <span class="syc-count-badge">{{ countPorRol('ADMIN') }}</span>
++      </button>
++    </div>
++
++    @if (loadingGestion) {
++      <p class="syc-hint">Cargando...</p>
++    }
++
++    @if (!loadingGestion && usuariosDeLaPestanaActiva.length === 0) {
++      <p class="syc-empty">No hay usuarios en esta pestaña.</p>
++    }
++
++    @if (!loadingGestion && usuariosDeLaPestanaActiva.length > 0) {
++      <div class="syc-users-list">
++        @for (user of usuariosDeLaPestanaActiva; track user.id) {
++          <div class="syc-user-row">
++            <div class="syc-user-info">
++              <strong>{{ user.name }} {{ user.surname }}</strong>
++              <span>{{ user.username }} · {{ user.email }}</span>
++            </div>
++            @if (user.roleName === 'ADMIN') {
++              <span class="syc-count-badge">Administrador</span>
++            } @else if (user.additionalAdmin) {
++              <button class="syc-danger-btn syc-role-toggle-btn" [disabled]="togglingAdminExtra[user.id]"
++                      (click)="toggleAdminExtra(user)">
++                <span class="material-icons">remove_moderator</span>
++                @if (togglingAdminExtra[user.id]) { ... } @else { Quitar rol de Admin }
++              </button>
++            } @else {
++              <button class="syc-assign-btn syc-role-toggle-btn" [disabled]="togglingAdminExtra[user.id]"
++                      (click)="toggleAdminExtra(user)">
++                <span class="material-icons">add_moderator</span>
++                @if (togglingAdminExtra[user.id]) { ... } @else { Dar rol de Admin }
++              </button>
++            }
++          </div>
++        }
++      </div>
++    }
++  </div>
++
+   <!-- Usuarios sin rol -->
+   <div class="syc-card">
+     <h3><span class="material-icons">person_add</span> Usuarios sin rol</h3>
+@@ -154,24 +211,9 @@
+ 
+       <div class="syc-fullscreen-body">
+         @if (currentWizardGradeNumber === 1) {
+-          <!-- Paso especial: alta de estudiantes nuevos de Grado 1 -->
+-          <div class="syc-new-student-form">
+-            <input type="text" placeholder="Nombre" [(ngModel)]="newStudentForm.name">
+-            <input type="text" placeholder="Apellido" [(ngModel)]="newStudentForm.surname">
+-            <input type="text" placeholder="Documento de identidad" [(ngModel)]="newStudentForm.documentNumber">
+-            <div class="syc-salon-toggle">
+-              <button type="button" class="salon-btn" [class.active]="newStudentForm.classGroup === 'A'" (click)="newStudentForm.classGroup = 'A'">A</button>
+-              <button type="button" class="salon-btn" [class.active]="newStudentForm.classGroup === 'B'" (click)="newStudentForm.classGroup = 'B'">B</button>
+-            </div>
+-            <button class="syc-save-btn" [disabled]="addingStudent" (click)="agregarEstudianteNuevo()">
+-              <span class="material-icons">person_add</span>
+-              @if (addingStudent) { Agregando... } @else { Agregar }
+-            </button>
+-          </div>
+-          @if (addStudentError) {
+-            <p class="syc-message">{{ addStudentError }}</p>
+-          }
+-
++          <!-- Paso especial: alta de estudiantes nuevos de Grado 1. La lista
++               va PRIMERO y crece hacia abajo; el formulario + botón "Agregar"
++               quedan siempre al final, debajo del último estudiante añadido. -->
+           @if (newStudentsGrade1.length === 0) {
+             <p class="syc-empty">Todavía no has agregado estudiantes nuevos a Grado 1º.</p>
+           } @else {
+@@ -190,6 +232,23 @@
+               }
+             </div>
+           }
++
++          <div class="syc-new-student-form">
++            <input type="text" placeholder="Nombre" [(ngModel)]="newStudentForm.name">
++            <input type="text" placeholder="Apellido" [(ngModel)]="newStudentForm.surname">
++            <input type="text" placeholder="Documento de identidad" [(ngModel)]="newStudentForm.documentNumber">
++            <div class="syc-salon-toggle">
++              <button type="button" class="salon-btn" [class.active]="newStudentForm.classGroup === 'A'" (click)="newStudentForm.classGroup = 'A'">A</button>
++              <button type="button" class="salon-btn" [class.active]="newStudentForm.classGroup === 'B'" (click)="newStudentForm.classGroup = 'B'">B</button>
++            </div>
++            <button class="syc-save-btn" [disabled]="addingStudent" (click)="agregarEstudianteNuevo()">
++              <span class="material-icons">person_add</span>
++              @if (addingStudent) { Agregando... } @else { Agregar }
++            </button>
++          </div>
++          @if (addStudentError) {
++            <p class="syc-message">{{ addStudentError }}</p>
++          }
+         } @else {
+           <!-- Pasos Grado 2 a 11: organizar promovidos -->
+           @if (pendientesDelPasoActual.length === 0) {
+diff --git a/Frontend/src/app/school-year-config/school-year-config.ts b/Frontend/src/app/school-year-config/school-year-config.ts
+index b2c4b81..891fc09 100644
+--- a/Frontend/src/app/school-year-config/school-year-config.ts
++++ b/Frontend/src/app/school-year-config/school-year-config.ts
+@@ -2,7 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
+ import { CommonModule } from '@angular/common';
+ import { FormsModule } from '@angular/forms';
+ import {
+-  SchoolYearService, SchoolYearConfigDto, PendienteOrganizar, UsuarioSinRol, RoleDto
++  SchoolYearService, SchoolYearConfigDto, PendienteOrganizar, UsuarioSinRol, RoleDto, UsuarioGestionRol
+ } from '../services/school-year.service';
+ import { DialogService } from '../services/dialog.service';
+ 
+@@ -55,11 +55,18 @@ export class SchoolYearConfig implements OnInit {
+   loadingUsuarios = false;
+   assigningUser: { [userId: number]: boolean } = {};
+ 
++  // Recuadro "Roles y permisos" (pestañas Padres / Profesores / Administradores)
++  usuariosGestion: UsuarioGestionRol[] = [];
++  loadingGestion = false;
++  activeRoleTab: 'PARENT' | 'TEACHER' | 'ADMIN' = 'PARENT';
++  togglingAdminExtra: { [userId: number]: boolean } = {};
++
+   ngOnInit() {
+     this.loadConfig();
+     this.loadPendientes();
+     this.loadUsuariosSinRol();
+     this.loadRoles();
++    this.loadUsuariosGestion();
+   }
+ 
+   loadConfig() {
+@@ -336,4 +343,43 @@ export class SchoolYearConfig implements OnInit {
+       error: () => { this.assigningUser[user.id] = false; }
+     });
+   }
++
++  // ── Recuadro "Roles y permisos": todos los usuarios por pestaña ────────
++  loadUsuariosGestion() {
++    this.loadingGestion = true;
++    this.service.getUsuariosGestionRoles().subscribe({
++      next: (list) => {
++        this.usuariosGestion = list;
++        this.loadingGestion = false;
++      },
++      error: () => { this.loadingGestion = false; }
++    });
++  }
++
++  setRoleTab(tab: 'PARENT' | 'TEACHER' | 'ADMIN') {
++    this.activeRoleTab = tab;
++  }
++
++  get usuariosDeLaPestanaActiva(): UsuarioGestionRol[] {
++    return this.usuariosGestion.filter(u => u.roleName === this.activeRoleTab);
++  }
++
++  countPorRol(roleName: 'PARENT' | 'TEACHER' | 'ADMIN'): number {
++    return this.usuariosGestion.filter(u => u.roleName === roleName).length;
++  }
++
++  /** Da (o quita) el rol de administrador "extra" a un usuario, sin
++   *  importar cuál sea su rol principal: se le suma, no se le reemplaza. */
++  toggleAdminExtra(user: UsuarioGestionRol) {
++    if (user.roleName === 'ADMIN') return; // ya es admin de por sí
++    const nuevoValor = !user.additionalAdmin;
++    this.togglingAdminExtra[user.id] = true;
++    this.service.toggleAdminExtra(user.id, nuevoValor).subscribe({
++      next: () => {
++        this.togglingAdminExtra[user.id] = false;
++        user.additionalAdmin = nuevoValor;
++      },
++      error: () => { this.togglingAdminExtra[user.id] = false; }
++    });
++  }
+ }
+\ No newline at end of file
+diff --git a/Frontend/src/app/services/school-year.service.ts b/Frontend/src/app/services/school-year.service.ts
+index 089a086..4a432b6 100644
+--- a/Frontend/src/app/services/school-year.service.ts
++++ b/Frontend/src/app/services/school-year.service.ts
+@@ -32,6 +32,22 @@ export interface RoleDto {
+   name: string;
+ }
+ 
++/** Usuario para el recuadro "Roles y permisos" de Configuración de Año:
++ *  a diferencia de UsuarioSinRol, este SÍ incluye a todos los usuarios que
++ *  ya tienen un rol (para poder listarlos en sus pestañas Padres /
++ *  Profesores / Administradores), más si tienen el rol ADMIN "extra"
++ *  sumado además de su rol principal. */
++export interface UsuarioGestionRol {
++  id: number;
++  name: string;
++  surname: string;
++  username: string;
++  email: string;
++  roleId: number;
++  roleName: string; // 'ADMIN' | 'TEACHER' | 'PARENT'
++  additionalAdmin: boolean;
++}
++
+ @Injectable({ providedIn: 'root' })
+ export class SchoolYearService {
+   private readonly http = inject(HttpClient);
+@@ -78,6 +94,16 @@ export class SchoolYearService {
+     return this.http.put(`${this.USERS_BASE}/${userId}/role`, { roleId });
+   }
+ 
++  getUsuariosGestionRoles(): Observable<UsuarioGestionRol[]> {
++    return this.http.get<UsuarioGestionRol[]>(`${this.USERS_BASE}/gestion-roles`);
++  }
++
++  /** Suma o quita el rol ADMIN "extra" a un usuario, sin tocar su rol
++   *  principal (padre/profesor/admin siguen siendo lo que ya eran). */
++  toggleAdminExtra(userId: number, enable: boolean): Observable<any> {
++    return this.http.put(`${this.USERS_BASE}/${userId}/admin-extra`, { enable });
++  }
++
+   fechaAlcanzada(): Observable<{ alcanzada: boolean }> {
+     return this.http.get<{ alcanzada: boolean }>(`${this.API_BASE}/fecha-alcanzada`);
+   }
+diff --git a/Frontend/src/app/settings/settings.ts b/Frontend/src/app/settings/settings.ts
+index 440c6ef..abd6e9c 100644
+--- a/Frontend/src/app/settings/settings.ts
++++ b/Frontend/src/app/settings/settings.ts
+@@ -2,6 +2,7 @@ import { Component, inject, signal, OnInit, OnDestroy } from '@angular/core';
+ import { FormsModule } from '@angular/forms';
+ 
+ import { AuthService } from '../services/auth.service';
++import { API_BASE_URL } from '../config/api-base';
+ import { HttpClient } from '@angular/common/http';
+ import { Router } from '@angular/router';
+ import { ThemeService } from '../services/theme.service';
+@@ -741,7 +742,7 @@ export class Settings implements OnInit, OnDestroy {
+     // Construct full URL if it's a relative path - use backend port 8080
+     let fullImageUrl = profilePicturePath;
+     if (profilePicturePath && !profilePicturePath.startsWith('http')) {
+-      fullImageUrl = `http://localhost:8080${profilePicturePath}`;
++      fullImageUrl = `${API_BASE_URL}${profilePicturePath}`;
+       console.log('🖼️ Constructed full image URL with backend port:', fullImageUrl);
+     }
+     
+@@ -768,7 +769,7 @@ export class Settings implements OnInit, OnDestroy {
+     }
+     
+     // Construct full URL for relative paths using backend port 8080
+-    const fullUrl = `http://localhost:8080${imagePath}`;
++    const fullUrl = `${API_BASE_URL}${imagePath}`;
+     console.log('🔧 Converted image URL:', imagePath, '->', fullUrl);
+     return fullUrl;
+   }
+diff --git a/Frontend/src/app/teachers/teachers.ts b/Frontend/src/app/teachers/teachers.ts
+index 1f465eb..6b8216c 100644
+--- a/Frontend/src/app/teachers/teachers.ts
++++ b/Frontend/src/app/teachers/teachers.ts
+@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
+ import { FormsModule } from '@angular/forms';
+ import { HttpClient } from '@angular/common/http';
+ 
++import { API_BASE_URL } from '../config/api-base';
+ interface Teacher {
+   id: number;
+   name: string;
+@@ -334,7 +335,7 @@ export class Teachers implements OnInit {
+     if (profilePicture.startsWith('http://') || profilePicture.startsWith('https://')) {
+       return profilePicture;
+     }
+-    return `http://localhost:8080${profilePicture.startsWith('/') ? profilePicture : `/${profilePicture}`}`;
++    return `${API_BASE_URL}${profilePicture.startsWith('/') ? profilePicture : `/${profilePicture}`}`;
+   }
+ 
+   getTeacherFullName(teacher: Teacher): string {
+diff --git a/src/main/java/com/notastrinitario/app/config/SecurityConfig.java b/src/main/java/com/notastrinitario/app/config/SecurityConfig.java
+index bd735b8..c599fc5 100644
+--- a/src/main/java/com/notastrinitario/app/config/SecurityConfig.java
++++ b/src/main/java/com/notastrinitario/app/config/SecurityConfig.java
+@@ -117,7 +117,12 @@ public class SecurityConfig {
+                                 "http://localhost:4200",
+                                 "http://localhost:8080",
+                                 "http://127.0.0.1:4200",
+-                                "http://127.0.0.1:8080"));
++                                "http://127.0.0.1:8080",
++                                // DevTunnels (frontend y backend expuestos por túnel, p.ej.
++                                // https://<id>-4200.use.devtunnels.ms y
++                                // https://<id>-8080.use.devtunnels.ms). No se quita nada de
++                                // arriba: localhost sigue funcionando igual que antes.
++                                "https://*.devtunnels.ms"));
+                 configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+                 configuration.setAllowedHeaders(Arrays.asList(
+                                 "*",
+diff --git a/src/main/java/com/notastrinitario/app/controller/UserController.java b/src/main/java/com/notastrinitario/app/controller/UserController.java
+index 095e7ef..437c4fa 100644
+--- a/src/main/java/com/notastrinitario/app/controller/UserController.java
++++ b/src/main/java/com/notastrinitario/app/controller/UserController.java
+@@ -365,4 +365,49 @@ public class UserController {
+         return ResponseEntity.ok(Map.of("message", "Rol asignado correctamente"));
+     }
+ 
++    // ── Recuadro "Roles y permisos" de Configuración de Año ──
++    // Lista TODOS los usuarios con rol (a diferencia de /sin-rol), agrupables
++    // en el frontend por pestaña Padres / Profesores / Administradores, más
++    // si ya tienen el rol ADMIN "extra" sumado (ver `additionalAdmin`).
++    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
++    @GetMapping("/gestion-roles")
++    public ResponseEntity<?> usuariosGestionRoles() {
++        List<Map<String, Object>> dto = StreamSupport.stream(userRepository.findAll().spliterator(), false)
++                .filter(u -> u.getRole() != null)
++                .map(u -> {
++                    Map<String, Object> m = new HashMap<>();
++                    m.put("id", u.getId());
++                    m.put("name", u.getName());
++                    m.put("surname", u.getSurname());
++                    m.put("username", u.getUsername());
++                    m.put("email", u.getEmail());
++                    m.put("roleId", u.getRole().getId());
++                    m.put("roleName", u.getRole().getName());
++                    m.put("additionalAdmin", u.getAdditionalAdmin());
++                    return m;
++                }).collect(Collectors.toList());
++        return ResponseEntity.ok(dto);
++    }
++
++    // Suma (o quita) el rol ADMIN "extra" a un usuario, SIN tocar su rol
++    // principal. body: { "enable": true|false }
++    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
++    @PutMapping("/{id}/admin-extra")
++    public ResponseEntity<?> toggleAdminExtra(@PathVariable Long id, @RequestBody Map<String, Object> body) {
++        Optional<User> userOpt = userRepository.findById(id);
++        if (userOpt.isEmpty()) {
++            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Usuario no encontrado"));
++        }
++        boolean enable = Boolean.TRUE.equals(body.get("enable"));
++
++        User user = userOpt.get();
++        user.setAdditionalAdmin(enable);
++        userRepository.save(user);
++
++        return ResponseEntity.ok(Map.of(
++                "message", enable ? "Rol de administrador sumado correctamente" : "Rol de administrador extra removido",
++                "additionalAdmin", user.getAdditionalAdmin()
++        ));
++    }
++
+ }
+\ No newline at end of file
+diff --git a/src/main/java/com/notastrinitario/app/entity/User.java b/src/main/java/com/notastrinitario/app/entity/User.java
+index 13f3a2d..6f7698e 100644
+--- a/src/main/java/com/notastrinitario/app/entity/User.java
++++ b/src/main/java/com/notastrinitario/app/entity/User.java
+@@ -87,6 +87,15 @@ public class User implements UserDetails {
+     @Column(name = "privacy_accepted_at")
+     private LocalDateTime privacyAcceptedAt;
+ 
++    // Rol ADMIN "extra": se puede sumar a cualquier usuario (padre, profesor,
++    // etc.) SIN quitarle su rol principal (`role`). Pensado para
++    // "Configuración de Año" → recuadro de roles, donde un admin puede darle
++    // acceso de administrador a alguien más, sin importar el rol que ya
++    // tenga. Se guarda aparte de `role` (que sigue siendo el rol principal)
++    // para no romper nada que ya dependa de un único rol por usuario.
++    @Column(name = "additional_admin")
++    private Boolean additionalAdmin = false;
++
+     public Long getId() { return id; }
+     public void setId(Long id) { this.id = id; }
+ 
+@@ -144,6 +153,9 @@ public class User implements UserDetails {
+     public LocalDateTime getPrivacyAcceptedAt() { return privacyAcceptedAt; }
+     public void setPrivacyAcceptedAt(LocalDateTime privacyAcceptedAt) { this.privacyAcceptedAt = privacyAcceptedAt; }
+ 
++    public Boolean getAdditionalAdmin() { return additionalAdmin != null && additionalAdmin; }
++    public void setAdditionalAdmin(Boolean additionalAdmin) { this.additionalAdmin = additionalAdmin; }
++
+     public String getFcmToken() { return fcmToken; }
+     public void setFcmToken(String fcmToken) { this.fcmToken = fcmToken; }
+ 
+@@ -157,8 +169,17 @@ public class User implements UserDetails {
+     @JsonIgnore
+     @Override
+     public Collection<? extends GrantedAuthority> getAuthorities() {
+-        if (role == null) return Collections.emptyList();
+-        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.getName()));
++        List<GrantedAuthority> authorities = new ArrayList<>();
++        if (role != null) {
++            authorities.add(new SimpleGrantedAuthority("ROLE_" + role.getName()));
++        }
++        // Rol ADMIN "extra" sumado (ver `additionalAdmin`): se agrega la
++        // autoridad ROLE_ADMIN además de la del rol principal, sin
++        // reemplazarla. Se evita duplicarla si el rol principal YA es ADMIN.
++        if (getAdditionalAdmin() && (role == null || !"ADMIN".equalsIgnoreCase(role.getName()))) {
++            authorities.add(new SimpleGrantedAuthority("ROLE_ADMIN"));
++        }
++        return authorities;
+     }
+ 
+     @JsonIgnore
+diff --git a/src/main/java/com/notastrinitario/app/security/JwtAuthenticationFilter.java b/src/main/java/com/notastrinitario/app/security/JwtAuthenticationFilter.java
+index bbeb15e..8f0d511 100644
+--- a/src/main/java/com/notastrinitario/app/security/JwtAuthenticationFilter.java
++++ b/src/main/java/com/notastrinitario/app/security/JwtAuthenticationFilter.java
+@@ -10,11 +10,9 @@ import jakarta.servlet.ServletException;
+ import jakarta.servlet.http.HttpServletRequest;
+ import jakarta.servlet.http.HttpServletResponse;
+ import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+-import org.springframework.security.core.authority.SimpleGrantedAuthority;
+ import org.springframework.security.core.context.SecurityContextHolder;
+ import org.springframework.web.filter.OncePerRequestFilter;
+ import java.io.IOException;
+-import java.util.List;
+ 
+ public class JwtAuthenticationFilter extends OncePerRequestFilter {
+ 
+@@ -41,10 +39,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
+                 
+                 if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                     userRepository.findById(Long.valueOf(userId)).ifPresent(user -> {
+-                        String role = user.getRole() != null ? user.getRole().getName() : "USER";
+-                        SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_" + role);
++                        // user.getAuthorities() ya incluye el rol principal Y,
++                        // si aplica, el ROLE_ADMIN "extra" sumado (ver
++                        // User.additionalAdmin) — así un cambio de rol se
++                        // refleja de inmediato, sin esperar a un nuevo login.
+                         UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+-                                user, null, List.of(authority));
++                                user, null, user.getAuthorities());
+                         SecurityContextHolder.getContext().setAuthentication(auth);
+                     });
+                 }
+diff --git a/src/main/java/com/notastrinitario/app/service/ConsolidadoService.java b/src/main/java/com/notastrinitario/app/service/ConsolidadoService.java
+index a12c011..8517387 100644
+--- a/src/main/java/com/notastrinitario/app/service/ConsolidadoService.java
++++ b/src/main/java/com/notastrinitario/app/service/ConsolidadoService.java
+@@ -169,7 +169,12 @@ public class ConsolidadoService {
+                 int idx = desde + slot - 1;
+                 boolean cupoUsado = idx < hasta;
+ 
+-                paginaHtml = paginaHtml.replace("{{FILA_" + slot + "_NUM}}", String.valueOf(slot));
++                // El No. de fila es el consecutivo REAL del estudiante en todo
++                // el consolidado (1..N), no el cupo de la página. Así, si la
++                // página 1 tiene 32 estudiantes, la página 2 arranca en el 33
++                // en vez de reiniciar en 1 (pedido explícito: "la otra hoja
++                // no debe empezar por uno sino por el 33").
++                paginaHtml = paginaHtml.replace("{{FILA_" + slot + "_NUM}}", String.valueOf(idx + 1));
+                 paginaHtml = paginaHtml.replace("{{FILA_" + slot + "_CLASE_VACIA}}", cupoUsado ? "" : " fila--vacia");
+ 
+                 if (cupoUsado) {

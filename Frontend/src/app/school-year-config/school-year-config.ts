@@ -2,7 +2,7 @@ import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import {
-  SchoolYearService, SchoolYearConfigDto, PendienteOrganizar, UsuarioSinRol, RoleDto
+  SchoolYearService, SchoolYearConfigDto, PendienteOrganizar, UsuarioSinRol, RoleDto, UsuarioGestionRol
 } from '../services/school-year.service';
 import { DialogService } from '../services/dialog.service';
 
@@ -55,11 +55,18 @@ export class SchoolYearConfig implements OnInit {
   loadingUsuarios = false;
   assigningUser: { [userId: number]: boolean } = {};
 
+  // Recuadro "Roles y permisos" (pestañas Padres / Profesores / Administradores)
+  usuariosGestion: UsuarioGestionRol[] = [];
+  loadingGestion = false;
+  activeRoleTab: 'PARENT' | 'TEACHER' | 'ADMIN' = 'PARENT';
+  togglingAdminExtra: { [userId: number]: boolean } = {};
+
   ngOnInit() {
     this.loadConfig();
     this.loadPendientes();
     this.loadUsuariosSinRol();
     this.loadRoles();
+    this.loadUsuariosGestion();
   }
 
   loadConfig() {
@@ -334,6 +341,45 @@ export class SchoolYearConfig implements OnInit {
         this.usuariosSinRol = this.usuariosSinRol.filter(u => u.id !== user.id);
       },
       error: () => { this.assigningUser[user.id] = false; }
+    });
+  }
+
+  // ── Recuadro "Roles y permisos": todos los usuarios por pestaña ────────
+  loadUsuariosGestion() {
+    this.loadingGestion = true;
+    this.service.getUsuariosGestionRoles().subscribe({
+      next: (list) => {
+        this.usuariosGestion = list;
+        this.loadingGestion = false;
+      },
+      error: () => { this.loadingGestion = false; }
+    });
+  }
+
+  setRoleTab(tab: 'PARENT' | 'TEACHER' | 'ADMIN') {
+    this.activeRoleTab = tab;
+  }
+
+  get usuariosDeLaPestanaActiva(): UsuarioGestionRol[] {
+    return this.usuariosGestion.filter(u => u.roleName === this.activeRoleTab);
+  }
+
+  countPorRol(roleName: 'PARENT' | 'TEACHER' | 'ADMIN'): number {
+    return this.usuariosGestion.filter(u => u.roleName === roleName).length;
+  }
+
+  /** Da (o quita) el rol de administrador "extra" a un usuario, sin
+   *  importar cuál sea su rol principal: se le suma, no se le reemplaza. */
+  toggleAdminExtra(user: UsuarioGestionRol) {
+    if (user.roleName === 'ADMIN') return; // ya es admin de por sí
+    const nuevoValor = !user.additionalAdmin;
+    this.togglingAdminExtra[user.id] = true;
+    this.service.toggleAdminExtra(user.id, nuevoValor).subscribe({
+      next: () => {
+        this.togglingAdminExtra[user.id] = false;
+        user.additionalAdmin = nuevoValor;
+      },
+      error: () => { this.togglingAdminExtra[user.id] = false; }
     });
   }
 }

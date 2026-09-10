@@ -169,7 +169,12 @@ public class ConsolidadoService {
                 int idx = desde + slot - 1;
                 boolean cupoUsado = idx < hasta;
 
-                paginaHtml = paginaHtml.replace("{{FILA_" + slot + "_NUM}}", String.valueOf(slot));
+                // El No. de fila es el consecutivo REAL del estudiante en todo
+                // el consolidado (1..N), no el cupo de la página. Así, si la
+                // página 1 tiene 32 estudiantes, la página 2 arranca en el 33
+                // en vez de reiniciar en 1 (pedido explícito: "la otra hoja
+                // no debe empezar por uno sino por el 33").
+                paginaHtml = paginaHtml.replace("{{FILA_" + slot + "_NUM}}", String.valueOf(idx + 1));
                 paginaHtml = paginaHtml.replace("{{FILA_" + slot + "_CLASE_VACIA}}", cupoUsado ? "" : " fila--vacia");
 
                 if (cupoUsado) {

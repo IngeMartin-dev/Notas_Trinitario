@@ -2471,7 +2471,7 @@ Estética: usa encabezados claros, viñetas, tablas simples y un estilo limpio y
 // Si Mistral se cuelga y no llega NINGÚN dato nuevo en este tiempo, se
          // corta la espera y se muestra un error en vez de dejar la rueda de
          // carga girando indefinidamente ("se demora mucho" / "no genera").
-         const AI_IDLE_TIMEOUT_MS = 100000;
+          const AI_IDLE_TIMEOUT_MS = 150000;
          let idleTimer: any = null;
          const abortController = new AbortController();
          const resetIdleTimer = () => {
@@ -2492,7 +2492,7 @@ try {
               body: JSON.stringify({
                 prompt: prompt,
                 temperature: 0.4,
-                 max_tokens: 24000
+                 max_tokens: 4096
               }),
               signal: abortController.signal
            });

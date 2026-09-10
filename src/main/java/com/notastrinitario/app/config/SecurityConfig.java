@@ -117,7 +117,14 @@ public class SecurityConfig {
                                 "http://localhost:4200",
                                 "http://localhost:8080",
                                 "http://127.0.0.1:4200",
-                                "http://127.0.0.1:8080"));
+                                "http://127.0.0.1:8080",
+                                // DevTunnel actual (frontend en 4200, backend en 8080). Cuando
+                                // el id del túnel cambie, hay que actualizar estas dos líneas.
+                                "https://rq4cngtm-4200.use.devtunnels.ms",
+                                "https://rq4cngtm-8080.use.devtunnels.ms",
+                                // Comodín de respaldo por si el id cambia y se te olvida
+                                // actualizar las dos líneas de arriba.
+                                "https://*.devtunnels.ms"));
                 configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
                 configuration.setAllowedHeaders(Arrays.asList(
                                 "*",

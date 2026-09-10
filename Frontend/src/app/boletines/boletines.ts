@@ -6,6 +6,7 @@ import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { Subscription } from 'rxjs';
 import { GenerationService, GenerationJob } from '../services/generation.service';
+import { API_BASE_URL } from '../config/api-base';
 import { DialogService } from '../services/dialog.service';
 
 interface Student {
@@ -36,6 +37,8 @@ const VALORACION_ACUDIENTE_SUBJECT = 'Valoracion Acudiente';
   styleUrl: './boletines.css'
 })
 export class Boletines implements OnInit, OnDestroy {
+  /** Para las firmas (<img> en el template), que no pasan por el interceptor HTTP. */
+  readonly apiBaseUrl = API_BASE_URL;
   grades: string[] = ['Grado 1º', 'Grado 2º', 'Grado 3º', 'Grado 4º', 'Grado 5º', 'Grado 6º', 'Grado 7º', 'Grado 8º', 'Grado 9º', 'Grado 10º', 'Grado 11º'];
   classrooms: string[] = ['Salon A', 'Salon B'];
 

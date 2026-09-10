@@ -176,7 +176,25 @@
 
 .nav-menu {
   flex: 1;
+  min-height: 0; /* necesario para que overflow-y funcione dentro de un flex column */
   padding: 20px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) transparent;
+}
+
+.nav-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.nav-menu::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 3px;
+}
+
+.nav-menu::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .nav-menu ul {

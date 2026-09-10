@@ -8,6 +8,7 @@ import { NotificationService } from '../services/notification.service';
 import { GradesUpdateService } from '../services/grades-update.service';
 import { DialogService } from '../services/dialog.service';
 
+import { API_BASE_URL } from '../config/api-base';
 interface Activity {
   icon: string;
   description: string;
@@ -660,7 +661,7 @@ export class Dashboard implements OnInit {
     }
     
     // Construct full URL for relative paths using backend port 8080
-    const fullUrl = `http://localhost:8080${imagePath}`;
+    const fullUrl = `${API_BASE_URL}${imagePath}`;
     console.log('🔧 Dashboard - Converted image URL:', imagePath, '->', fullUrl);
     return fullUrl;
   }

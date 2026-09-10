@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 
+import { API_BASE_URL } from '../config/api-base';
 interface Teacher {
   id: number;
   name: string;
@@ -334,7 +335,7 @@ export class Teachers implements OnInit {
     if (profilePicture.startsWith('http://') || profilePicture.startsWith('https://')) {
       return profilePicture;
     }
-    return `http://localhost:8080${profilePicture.startsWith('/') ? profilePicture : `/${profilePicture}`}`;
+    return `${API_BASE_URL}${profilePicture.startsWith('/') ? profilePicture : `/${profilePicture}`}`;
   }
 
   getTeacherFullName(teacher: Teacher): string {

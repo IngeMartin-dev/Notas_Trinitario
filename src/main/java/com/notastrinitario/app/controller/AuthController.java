@@ -120,19 +120,16 @@ public class AuthController {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             String storedPassword = user.getPassword();
-            boolean passwordMatches = false;
-            
-            String inputHash = hashSHA256(password);
-            
-            if (storedPassword != null && storedPassword.length() == 64) {
-                passwordMatches = inputHash.equalsIgnoreCase(storedPassword);
-            } else if (storedPassword != null && !storedPassword.isEmpty()) {
-                passwordMatches = password.equals(storedPassword);
-                if (passwordMatches) {
-                    String hashedPassword = hashSHA256(password);
-                    user.setPassword(hashedPassword);
-                    userRepository.save(user);
-                }
+            boolean passwordMatches = com.notastrinitario.app.security.PasswordSecurity.matches(password, storedPassword);
+
+            // Migración transparente: si el hash guardado todavía no es BCrypt
+            // (SHA-256 heredado o, en datos muy viejos, texto plano), lo
+            // reemplazamos por un hash BCrypt ahora que sabemos la contraseña
+            // en texto plano fue correcta. Así toda cuenta activa termina en
+            // BCrypt sin forzar un reseteo masivo de contraseñas.
+            if (passwordMatches && com.notastrinitario.app.security.PasswordSecurity.needsUpgrade(storedPassword)) {
+                user.setPassword(com.notastrinitario.app.security.PasswordSecurity.hash(password));
+                userRepository.save(user);
             }
 
             if (passwordMatches) {
@@ -209,7 +206,7 @@ public class AuthController {
         if (userRepository.findByEmail(user.getEmail()).isPresent()) {
             return ResponseEntity.badRequest().body(Map.of("error", "email already in use"));
         }
-        user.setPassword(hashSHA256(user.getPassword()));
+        user.setPassword(com.notastrinitario.app.security.PasswordSecurity.hash(user.getPassword()));
         User saved = userRepository.save(user);
         String token = jwtUtil.generateToken(saved.getId().toString());
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(
@@ -453,7 +450,7 @@ public class AuthController {
             return ResponseEntity.status(401).body(Map.of("error", "No autenticado"));
         }
         String password = body.get("password");
-        if (password == null || !hashSHA256(password).equalsIgnoreCase(nvl(user.getPassword()))) {
+        if (password == null || !com.notastrinitario.app.security.PasswordSecurity.matches(password, user.getPassword())) {
             return ResponseEntity.status(401).body(Map.of("error", "Contraseña incorrecta"));
         }
         user.setTwoFactorEnabled(false);
@@ -463,5 +460,4 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("success", true, "twoFactorEnabled", false));
     }
 
-    private String nvl(String s) { return s != null ? s : ""; }
 }

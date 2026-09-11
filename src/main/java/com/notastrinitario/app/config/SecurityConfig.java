@@ -62,26 +62,22 @@ public class SecurityConfig {
                                                                 "/error",
                                                                 "/img/**")
                                                 .permitAll()
-                                                // API pública
+                                                // API pública: solo lo estrictamente necesario ANTES de
+                                                // iniciar sesión. Todo lo demás exige JWT válido.
                                                 .requestMatchers("/api/auth/login", "/api/auth/register",
                                                         "/api/auth/me", "/api/auth/refresh", "/api/auth/verify-2fa")
                                                 .permitAll()
-                                                // API de períodos
-                                                .requestMatchers("/api/periods/**").permitAll()
-                                                // API de estudiantes - temporal: permitir sin auth para probar
-                                                .requestMatchers("/api/students/**").permitAll()
-                                                // API de calificaciones
-                                                .requestMatchers("/api/grades/**").permitAll()
-                                                // API de IA (proxy a Mistral para planes de estudio)
-                                                .requestMatchers("/api/ai/**").permitAll()
-                                                // API de boletines
-                                                .requestMatchers("/api/boletines/**").permitAll()
-                                                // API de profesores y materias
-                                                .requestMatchers("/api/teachers/**").permitAll()
-                                                .requestMatchers("/api/subjects/**").permitAll()
-                                                // API de padres de familia
-                                                .requestMatchers("/api/parents/**").permitAll()
                                                 .requestMatchers("/api/health").permitAll()
+                                                // El resto del API (estudiantes, notas, boletines, padres,
+                                                // profesores, materias, periodos, IA, etc.) requiere estar
+                                                // autenticado. Antes estaban en permitAll() "temporal para
+                                                // probar" y cualquiera sin sesión podía leer o modificar
+                                                // notas y datos de estudiantes; el frontend ya envía el JWT
+                                                // en todas estas llamadas (ver auth-interceptor.ts), así que
+                                                // esto no debería romper nada que ya funcionara con sesión
+                                                // iniciada. Reglas de rol más finas (por ejemplo, que solo
+                                                // ADMIN pueda crear profesores) se aplican método por método
+                                                // con @PreAuthorize, como ya se hizo en /api/parents/me/children.
                                                 // Rutas protegidas
                                                 .requestMatchers("/admin/**").hasRole("ADMIN")
                                                 .requestMatchers("/teacher/**").hasRole("TEACHER")
@@ -97,6 +93,16 @@ public class SecurityConfig {
                                         headers.xssProtection(xss -> xss.disable());
                                         headers.contentSecurityPolicy(
                                                         csp -> csp.policyDirectives("default-src 'self'"));
+                                        // Fuerza HTTPS en el navegador durante 1 año una vez visitado por HTTPS
+                                        // (evita ataques de downgrade a HTTP). No tiene efecto en localhost/HTTP puro.
+                                        headers.httpStrictTransportSecurity(hsts -> hsts
+                                                        .includeSubDomains(true)
+                                                        .maxAgeInSeconds(31536000));
+                                        // Evita que el navegador intente "adivinar" el tipo de un archivo
+                                        // subido (uploads/profile-pictures) y lo ejecute como script.
+                                        headers.contentTypeOptions(contentTypeOptions -> {});
+                                        headers.referrerPolicy(referrer -> referrer
+                                                        .policy(org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN));
                                 });
 
                 // Register JWT filter before username/password filter

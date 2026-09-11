@@ -5,6 +5,7 @@ import com.notastrinitario.app.entity.User;
 import com.notastrinitario.app.service.NotificationService;
 import com.notastrinitario.app.service.StudentService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.bind.annotation.RequestParam;
 
@@ -49,11 +50,21 @@ public class StudentController {
         }
     }
 
+    // Ver/crear/editar/borrar estudiantes es trabajo de personal del
+    // colegio, nunca de una cuenta de padre de familia. Antes estos
+    // endpoints no tenían ninguna restricción de rol: cualquier cuenta ya
+    // logueada (incluido un padre) podía listar TODOS los estudiantes de
+    // TODOS los salones, o incluso editar/borrar el registro de un
+    // estudiante que no fuera su hijo. Un padre debe usar
+    // /api/boletines/mis-boletines y /api/grades/mis-notas, que sí están
+    // acotados a sus propios hijos activos.
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping
     public List<Student> list() {
         return studentService.findAll();
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/{id}")
     public ResponseEntity<?> get(@PathVariable Long id) {
         return studentService.findById(id)
@@ -61,6 +72,7 @@ public class StudentController {
                 .orElse(ResponseEntity.notFound().build());
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<?> create(@RequestBody Student s) {
         if (s.getDocumentNumber() != null && !s.getDocumentNumber().isBlank()) {
@@ -82,6 +94,7 @@ public class StudentController {
         return ResponseEntity.ok(created);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public ResponseEntity<?> update(@PathVariable Long id, @RequestBody Student s) {
         return studentService.findById(id)
@@ -99,17 +112,28 @@ public class StudentController {
                 }).orElse(ResponseEntity.notFound().build());
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> delete(@PathVariable Long id) {
         studentService.deleteById(id);
         return ResponseEntity.ok().build();
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/grade/{grade}/class/{classGroup}")
     public List<Student> findByGradeAndClassGroup(@PathVariable String grade, @PathVariable String classGroup) {
         return studentService.findByGradeAndClassGroup(grade, classGroup);
     }
 
+    // ─────────────────────────────────────────────────────────────────
+    // Endpoints de debug/prueba. Quedaron de desarrollo: exponen TODOS los
+    // estudiantes de TODOS los salones sin filtro, uno de ellos incluso
+    // reactiva estudiantes en silencio dentro de un GET (efecto secundario
+    // inesperado). Los dejo restringidos solo a ADMIN mientras se decide
+    // si se eliminan; lo recomendable es borrarlos antes de producción.
+    // ─────────────────────────────────────────────────────────────────
+
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/debug/all")
     public List<Student> getAllStudentsDebug() {
         List<Student> allStudents = studentService.findAll();
@@ -126,6 +150,7 @@ public class StudentController {
         return allStudents;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/debug/grades")
     public List<String> getAllGradesDebug() {
         return studentService.findAll().stream()
@@ -135,6 +160,7 @@ public class StudentController {
                 .collect(java.util.stream.Collectors.toList());
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/debug/classrooms")
     public List<String> getAllClassroomsDebug() {
         return studentService.findAll().stream()
@@ -144,6 +170,7 @@ public class StudentController {
                 .collect(java.util.stream.Collectors.toList());
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/populate-test-data")
     public String populateTestData() {
         // Check if we already have students
@@ -182,6 +209,7 @@ public class StudentController {
         return "Test data populated successfully! " + testStudents.length + " students added.";
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/test-simple")
     public List<Student> getAllStudentsSimple() {
         List<Student> students = studentService.findAll();
@@ -193,6 +221,7 @@ public class StudentController {
         return students;
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/test-debug")
     public String testDebug(@RequestParam String grade, @RequestParam String classroom) {
         List<Student> allStudents = studentService.findAll();

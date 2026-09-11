@@ -49,8 +49,15 @@ public class UserController {
     }
 
     //Create a new user
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<?> create (@RequestBody User user) {
+		// Antes esta ruta guardaba la contraseña recibida tal cual, en texto
+		// plano, en la base de datos (userService.save no hashea nada).
+		// La hasheamos igual que en registro/creación de profesores/padres.
+		if (user.getPassword() != null && !user.getPassword().isBlank()) {
+			user.setPassword(com.notastrinitario.app.security.PasswordSecurity.hash(user.getPassword()));
+		}
 		String username = user.getUsername();
 		String email = user.getEmail();
 
@@ -81,6 +88,8 @@ public class UserController {
 	}
 	
 	//Read an user
+	// Un usuario puede ver su propio perfil; ver el de otro exige ADMIN.
+	@org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or #userid == authentication.principal.id")
 	@GetMapping("/{id}")
 	public ResponseEntity<?> read(@PathVariable(value = "id") Long userid) {
 		Optional<User> oUser = userService.findById(userid);
@@ -93,6 +102,8 @@ public class UserController {
 	}
 	
 	//Update an User
+	// Igual: editar el propio perfil sí, editar el de otro exige ADMIN.
+	@org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
 	@PutMapping("/{id}")
 	public ResponseEntity<?> update (@RequestBody User userDetails, @PathVariable (value = "id") Long userId) {
 		Optional<User> user = userService.findById(userId);
@@ -150,6 +161,7 @@ public class UserController {
 	}
 	
 	//Delete an User
+	@org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
 	@DeleteMapping("/{id}")
 	public ResponseEntity<?> delete (@PathVariable(value ="id") Long userId) {
 		
@@ -162,6 +174,7 @@ public class UserController {
 	}
 	
     //Read all Users
+       @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
        @GetMapping
        public List<User> readAll() {
        	List<User> users = StreamSupport
@@ -179,6 +192,8 @@ public class UserController {
     }
 
 	   //Upload profile picture
+	   // El usuario puede subir SU propia foto; subir la de otro exige ADMIN.
+	   @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
 	   @PostMapping("/{id}/profile-picture")
 	   public ResponseEntity<?> uploadProfilePicture(@PathVariable(value = "id") Long userId, @RequestParam("file") MultipartFile file) {
 	   	Optional<User> userOpt = userService.findById(userId);
@@ -211,8 +226,26 @@ public class UserController {
 	   			Files.createDirectories(uploadDir);
 	   		}
 
-	   		// Save file
-	   		String fileName = userId + "_" + file.getOriginalFilename();
+	   		// Antes el nombre del archivo se armaba con
+	   		// file.getOriginalFilename() tal cual, sin sanear. Un nombre como
+	   		// "../../../ruta/lo-que-sea" (que el navegador SÍ puede mandar,
+	   		// el nombre del archivo lo controla quien hace la petición HTTP,
+	   		// no un <input type=file>) permitía escribir el archivo subido
+	   		// FUERA de uploads/profile-pictures (path traversal / escritura
+	   		// arbitraria de archivos en el servidor). Ahora se ignora el
+	   		// nombre original salvo por su extensión, validada contra una
+	   		// lista blanca, y se genera un nombre propio y seguro.
+	   		String original = file.getOriginalFilename() != null ? file.getOriginalFilename() : "";
+	   		String ext = "";
+	   		int dot = original.lastIndexOf('.');
+	   		if (dot >= 0 && dot < original.length() - 1) {
+	   			ext = original.substring(dot + 1).toLowerCase().replaceAll("[^a-z0-9]", "");
+	   		}
+	   		java.util.Set<String> extensionesPermitidas = java.util.Set.of("jpg", "jpeg", "png", "gif", "webp");
+	   		if (!extensionesPermitidas.contains(ext)) {
+	   			ext = "jpg";
+	   		}
+	   		String fileName = userId + "_" + java.util.UUID.randomUUID() + "." + ext;
 	   		Path filePath = uploadDir.resolve(fileName);
 	   		Files.write(filePath, file.getBytes());
 
@@ -267,6 +300,15 @@ public class UserController {
 	   	return e.getMessage();
 	   }
 
+    // Cambiar la propia contraseña (con currentPassword) está permitido para
+    // el dueño de la cuenta o un ADMIN. La rama sin currentPassword es un
+    // reseteo "de admin" — antes esto NO comprobaba nada, así que cualquier
+    // cuenta logueada podía resetear la contraseña de CUALQUIER otro usuario
+    // (incluido un ADMIN) con solo mandar {"newPassword": "..."} sin
+    // currentPassword. Ahora: sin currentPassword, solo un ADMIN puede
+    // seguir esa rama; cualquier otro usuario debe mandar su contraseña
+    // actual para poder cambiarla.
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
     @PutMapping("/{id}/password")
     public ResponseEntity<?> changePassword(@PathVariable(value = "id") Long userId, @RequestBody Map<String, String> body) {
         String currentPassword = body.get("currentPassword");
@@ -276,11 +318,17 @@ public class UserController {
             return ResponseEntity.badRequest().body(Map.of("error", "newPassword es requerido"));
         }
 
+        boolean esAdmin = org.springframework.security.core.context.SecurityContextHolder.getContext()
+                .getAuthentication().getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
         try {
             if (currentPassword != null && !currentPassword.isEmpty()) {
                 userService.changePassword(userId, currentPassword, newPassword);
-            } else {
+            } else if (esAdmin) {
                 userService.resetPassword(userId, newPassword);
+            } else {
+                return ResponseEntity.badRequest().body(Map.of("error", "Debes indicar tu contraseña actual (currentPassword)"));
             }
             return ResponseEntity.ok(Map.of("message", "Contraseña actualizada correctamente"));
         } catch (RuntimeException e) {
@@ -288,6 +336,10 @@ public class UserController {
         }
     }
 
+    // Reseteo de contraseña "de administrador" (sin conocer la actual):
+    // solo ADMIN. Antes cualquier cuenta logueada podía resetear la
+    // contraseña de cualquier otro usuario llamando este endpoint.
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/{id}/password/reset")
     public ResponseEntity<?> resetPassword(@PathVariable(value = "id") Long userId, @RequestBody Map<String, String> body) {
         String newPassword = body.get("newPassword");

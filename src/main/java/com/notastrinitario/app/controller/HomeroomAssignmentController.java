@@ -5,6 +5,7 @@ import com.notastrinitario.app.entity.User;
 import com.notastrinitario.app.repository.HomeroomAssignmentRepository;
 import com.notastrinitario.app.repository.UserRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -21,6 +22,7 @@ public class HomeroomAssignmentController {
         this.userRepository = userRepository;
     }
     
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping
     public List<Map<String, Object>> getAll() {
         List<HomeroomAssignment> assignments = assignmentRepository.findAll();
@@ -40,6 +42,8 @@ public class HomeroomAssignmentController {
         }).collect(Collectors.toList());
     }
     
+    // Un profesor puede consultar SU PROPIA asignación; ver la de otro exige ADMIN.
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
     @GetMapping("/by-user/{userId}")
     public ResponseEntity<?> getByUser(@PathVariable Long userId) {
         return assignmentRepository.findByUserId(userId)
@@ -58,6 +62,7 @@ public class HomeroomAssignmentController {
             .orElse(ResponseEntity.notFound().build());
     }
     
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/by-grade/{grade}/classroom/{classroom}")
     public ResponseEntity<?> getByGradeAndClassroom(@PathVariable String grade, @PathVariable String classroom) {
         return assignmentRepository.findByGradeAndClassroom(grade, classroom)
@@ -76,6 +81,7 @@ public class HomeroomAssignmentController {
             .orElse(ResponseEntity.notFound().build());
     }
     
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/assign")
     public ResponseEntity<?> assignTeacher(@RequestBody Map<String, Object> payload) {
         Object userIdObj = payload.get("userId");
@@ -120,6 +126,7 @@ public class HomeroomAssignmentController {
         return ResponseEntity.ok(result);
     }
     
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/remove")
     public ResponseEntity<?> removeAssignment(@RequestBody Map<String, String> payload) {
         String grade = payload.get("grade");

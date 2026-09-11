@@ -3,10 +3,21 @@ package com.notastrinitario.app.controller;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import com.notastrinitario.app.entity.User;
 import com.notastrinitario.app.service.UserService;
 
+// Controlador heredado/duplicado: el flujo real de 2FA que usa el frontend
+// vive en AuthController (/api/auth/2fa/enable, /disable, /verify-2fa), que
+// siempre resuelve al usuario desde su propio JWT. Este controlador, en
+// cambio, recibía el userId como parámetro de la URL sin comprobar que
+// coincidiera con quien hacía la petición: CUALQUIER cuenta logueada podía
+// desactivar el 2FA de cualquier otra (incluida una cuenta ADMIN) llamando
+// /api/2fa/disable/{id de la víctima}, o generar/verificar códigos ajenos.
+// Como no lo usa el frontend, se bloquea entero a ADMIN en vez de intentar
+// reproducir aquí la lógica de "dueño de la cuenta" dos veces.
+@PreAuthorize("hasRole('ADMIN')")
 @RestController
 @RequestMapping("/api/2fa")
 public class TwoFactorAuthController {

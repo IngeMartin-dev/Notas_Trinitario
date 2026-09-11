@@ -11,12 +11,30 @@ import java.util.UUID;
 
 @Component
 public class JwtUtil {
+
+    // Valor que estuvo hardcodeado en el repo público. Si alguien vuelve a
+    // pegarlo en APP_JWT_SECRET (por ejemplo copiando un .env viejo), lo
+    // rechazamos igual: ya está expuesto y no sirve como secreto.
+    private static final String LEAKED_SECRET =
+            "a1b8aeb3b0cc2a4edf36f8fdc905bf730443be2cc98d689f6fc9c1e1d3c28efedf5701d17bf2de7bbf44f1693f8570dd015dad1500e744ea02869354b9042eca";
+
     private final Key key;
     private final long validity;
     private final long refreshValidity;
 
     public JwtUtil(AppProperties appProperties) {
-        this.key = Keys.hmacShaKeyFor(appProperties.getJwt().getSecret().getBytes());
+        String secret = appProperties.getJwt().getSecret();
+        if (secret == null || secret.isBlank() || secret.length() < 32) {
+            throw new IllegalStateException(
+                "Config inválida: falta la variable de entorno APP_JWT_SECRET (o es demasiado corta, "
+                + "mínimo 32 caracteres). Genera una con: openssl rand -hex 64, y NUNCA la subas a git.");
+        }
+        if (secret.equals(LEAKED_SECRET)) {
+            throw new IllegalStateException(
+                "Config inválida: APP_JWT_SECRET es el valor que estuvo expuesto en el repositorio público. "
+                + "Genera un secreto nuevo con: openssl rand -hex 64");
+        }
+        this.key = Keys.hmacShaKeyFor(secret.getBytes());
         this.validity = appProperties.getJwt().getExpiration();
         this.refreshValidity = appProperties.getJwt().getRefreshExpiration();
     }

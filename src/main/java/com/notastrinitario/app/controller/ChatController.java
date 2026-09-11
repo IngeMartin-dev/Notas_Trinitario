@@ -123,6 +123,9 @@ public class ChatController {
     // ── Directorio de contactos ─────────────────────────────────────────
     @GetMapping("/contacts")
     public ResponseEntity<?> getContacts(@RequestParam Long currentUserId) {
+        if (!esUsuarioValido(currentUserId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No autorizado"));
+        }
         User currentUser = userRepository.findById(currentUserId).orElse(null);
         String currentRole = currentUser != null && currentUser.getRole() != null
                 ? currentUser.getRole().getName() : "";
@@ -192,6 +195,9 @@ public class ChatController {
     // ── Historial de conversación con un contacto ───────────────────────
     @GetMapping("/conversation/{otherUserId}")
     public ResponseEntity<?> getConversation(@RequestParam Long currentUserId, @PathVariable Long otherUserId) {
+        if (!esUsuarioValido(currentUserId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No autorizado"));
+        }
         List<ChatMessage> messages = chatMessageRepository.findConversation(currentUserId, otherUserId);
         return ResponseEntity.ok(messages.stream().map(this::toDto).collect(Collectors.toList()));
     }
@@ -201,6 +207,9 @@ public class ChatController {
     public ResponseEntity<?> getNewMessages(@RequestParam Long currentUserId,
                                              @PathVariable Long otherUserId,
                                              @RequestParam String since) {
+        if (!esUsuarioValido(currentUserId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No autorizado"));
+        }
         LocalDateTime desde;
         try {
             desde = LocalDateTime.parse(since, ISO);
@@ -215,7 +224,11 @@ public class ChatController {
     @PostMapping("/messages")
     public ResponseEntity<?> sendMessage(@RequestBody Map<String, Object> body) {
         try {
-            Long senderId = Long.valueOf(body.get("senderId").toString());
+            // El senderId SIEMPRE se toma del usuario autenticado (JWT), no
+            // del "senderId" que manda el cliente en el body: antes se
+            // confiaba en ese valor tal cual, así que cualquiera podía
+            // enviar un mensaje haciéndose pasar por otro remitente.
+            Long senderId = currentUserIdOrThrow();
             Long receiverId = Long.valueOf(body.get("receiverId").toString());
             String content = (String) body.get("content");
             String typeRaw = (String) body.getOrDefault("type", "TEXT");
@@ -257,6 +270,9 @@ public class ChatController {
                                              @RequestParam String type,
                                              @RequestParam("file") MultipartFile file) {
         try {
+            if (!esUsuarioValido(senderId)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No autorizado"));
+            }
             if (file.isEmpty()) {
                 return ResponseEntity.badRequest().body(Map.of("error", "Archivo vacío"));
             }
@@ -316,6 +332,9 @@ public class ChatController {
     // ── Marcar como leída toda la conversación con un contacto ──────────
     @PutMapping("/conversation/{otherUserId}/leido")
     public ResponseEntity<?> markAsRead(@RequestParam Long currentUserId, @PathVariable Long otherUserId) {
+        if (!esUsuarioValido(currentUserId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No autorizado"));
+        }
         List<ChatMessage> unread = chatMessageRepository.findUnreadFrom(currentUserId, otherUserId);
         LocalDateTime now = LocalDateTime.now();
         unread.forEach(m -> m.setReadAt(now));
@@ -326,11 +345,47 @@ public class ChatController {
     // ── Total de mensajes sin leer (para el badge del menú) ─────────────
     @GetMapping("/no-leidos")
     public ResponseEntity<?> unreadTotal(@RequestParam Long currentUserId) {
+        if (!esUsuarioValido(currentUserId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", "No autorizado"));
+        }
         long total = chatMessageRepository.countUnreadTotal(currentUserId);
         return ResponseEntity.ok(Map.of("total", total));
     }
 
     // ═══════════════════════ helpers ════════════════════════════════════
+
+    /**
+     * Antes, "currentUserId" y "senderId" en este controlador se tomaban
+     * tal cual del query param / body que mandaba el cliente, sin verificar
+     * nada: cualquiera podía leer o marcar como leídas las conversaciones
+     * privadas de otra persona con solo cambiar ese número en la URL, o
+     * enviar mensajes haciéndose pasar por otro remitente. Estos helpers
+     * obligan a que ese id coincida con el usuario autenticado por JWT (o
+     * que sea ADMIN).
+     */
+    private User currentAuthUser() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        Object principal = auth != null ? auth.getPrincipal() : null;
+        return (principal instanceof User) ? (User) principal : null;
+    }
+
+    private Long currentUserIdOrThrow() {
+        User u = currentAuthUser();
+        if (u == null) throw new RuntimeException("No autenticado");
+        return u.getId();
+    }
+
+    private boolean esAdminActual() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        return auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+    }
+
+    /** true si claimedUserId es realmente el usuario autenticado, o si quien llama es ADMIN. */
+    private boolean esUsuarioValido(Long claimedUserId) {
+        User u = currentAuthUser();
+        if (u == null) return false;
+        return esAdminActual() || u.getId().equals(claimedUserId);
+    }
 
     /** Un par sender/receiver es válido si: ambos son personal (ADMIN,
      *  TEACHER, DIRECTOR_DE_GRUPO), o uno es personal y el otro es un padre

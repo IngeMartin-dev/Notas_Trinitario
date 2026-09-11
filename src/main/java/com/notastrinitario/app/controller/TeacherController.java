@@ -12,12 +12,11 @@ import com.notastrinitario.app.repository.SubjectRepository;
 import com.notastrinitario.app.repository.UserRepository;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import jakarta.persistence.EntityManager;
 import org.springframework.web.bind.annotation.*;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.io.StringWriter;
 import java.io.PrintWriter;
 import java.util.HashMap;
@@ -58,23 +57,8 @@ public class TeacherController {
         this.transactionTemplate = new TransactionTemplate(platformTransactionManager);
     }
 
-    private String hashSHA256(String password) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] hash = digest.digest(password.getBytes());
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : hash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1)
-                    hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 not available", e);
-        }
-    }
-
+    // Directorio de profesores: personal del colegio, no cuentas de padre.
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping
     public List<User> listTeachers() {
         return userRepository.findAll().stream()
@@ -83,6 +67,7 @@ public class TeacherController {
     }
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createTeacher(@RequestBody Map<String, Object> body) {
         String name = (String) body.get("name");
         String surname = (String) body.get("surname");
@@ -117,7 +102,7 @@ public class TeacherController {
         teacher.setSurname(surname.trim());
         teacher.setUsername(username.trim());
         teacher.setEmail(email.trim());
-        teacher.setPassword(hashSHA256(rawPassword));
+        teacher.setPassword(com.notastrinitario.app.security.PasswordSecurity.hash(rawPassword));
         teacher.setEnable(true);
 
         var role = roleRepository.findByName("TEACHER");
@@ -156,6 +141,7 @@ public class TeacherController {
         return ResponseEntity.ok(response);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<?> deleteTeacher(@PathVariable Long id) {
         try {

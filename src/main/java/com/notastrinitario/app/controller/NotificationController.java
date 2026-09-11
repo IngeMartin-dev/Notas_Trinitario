@@ -3,10 +3,10 @@ package com.notastrinitario.app.controller;
 import com.notastrinitario.app.entity.Notification;
 import com.notastrinitario.app.entity.User;
 import com.notastrinitario.app.repository.NotificationRepository;
-import com.notastrinitario.app.repository.UserRepository;
 import com.notastrinitario.app.service.NotificationService;
 import com.notastrinitario.app.service.FcmPushService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
@@ -16,20 +16,28 @@ import java.util.Map;
 public class NotificationController {
 
     private final NotificationRepository notificationRepository;
-    private final UserRepository userRepository;
     private final NotificationService notificationService;
     private final FcmPushService fcmPushService;
 
     public NotificationController(NotificationRepository notificationRepository,
-            UserRepository userRepository,
             NotificationService notificationService,
             FcmPushService fcmPushService) {
         this.notificationRepository = notificationRepository;
-        this.userRepository = userRepository;
         this.notificationService = notificationService;
         this.fcmPushService = fcmPushService;
     }
 
+    private Long currentUserIdOrThrow() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        Object principal = auth != null ? auth.getPrincipal() : null;
+        if (!(principal instanceof User u)) {
+            throw new RuntimeException("No autenticado");
+        }
+        return u.getId();
+    }
+
+    // Un usuario solo puede ver SUS propias notificaciones.
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<NotificationDTO>> getForUser(@PathVariable Long userId) {
         System.out.println("=== GET USER NOTIFICATIONS ===");
@@ -180,23 +188,28 @@ public class NotificationController {
 
     @PostMapping("/{id}/read")
     public ResponseEntity<?> markRead(@PathVariable Long id) {
-        System.out.println("=== MARK AS READ REQUEST ===");
-        System.out.println("Notification ID: " + id);
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        Object principal = auth != null ? auth.getPrincipal() : null;
+        if (!(principal instanceof User currentUser)) {
+            return ResponseEntity.status(401).body(Map.of("error", "No autenticado"));
+        }
+        boolean esAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
 
-        // Log authentication context
-        System.out.println("Authentication: " +
-                org.springframework.security.core.Authentication.class.getName());
-
-        return notificationRepository.findById(id).map(n -> {
-            System.out.println("Found notification: " + n.getTitle());
-            n.setRead(true);
-            notificationRepository.save(n);
-            System.out.println("Notification marked as read successfully");
-            // Return a simple success response instead of the entity
-            return ResponseEntity.ok(Map.of("success", true, "message", "Notification marked as read"));
-        }).orElse(ResponseEntity.notFound().build());
+        var notifOpt = notificationRepository.findById(id);
+        if (notifOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Notification n = notifOpt.get();
+        boolean esDueno = n.getUser() != null && n.getUser().getId().equals(currentUser.getId());
+        if (!esAdmin && !esDueno) {
+            return ResponseEntity.status(403).body(Map.of("success", false, "message", "No puedes modificar esta notificación"));
+        }
+        n.setRead(true);
+        notificationRepository.save(n);
+        return ResponseEntity.ok(Map.of("success", true, "message", "Notification marked as read"));
     }
 
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
     @DeleteMapping("/user/{userId}")
     public ResponseEntity<?> deleteAllForUser(@PathVariable Long userId) {
         System.out.println("=== DELETE ALL NOTIFICATIONS FOR USER ===");
@@ -213,6 +226,8 @@ public class NotificationController {
         }
     }
 
+    // Enviar notificaciones masivas (a padres/profesores/todos) es cosa de ADMIN.
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/send")
     public ResponseEntity<?> sendNotification(@RequestBody Map<String, Object> request) {
         try {
@@ -260,27 +275,40 @@ public class NotificationController {
             System.out.println("Request payload: " + request);
 
             // Validate required fields
-            if (!request.containsKey("originalNotificationId") || !request.containsKey("replyMessage")
-                    || !request.containsKey("senderId")) {
+            if (!request.containsKey("originalNotificationId") || !request.containsKey("replyMessage")) {
                 return ResponseEntity.badRequest().body(Map.of(
                         "success", false,
-                        "message", "Faltan campos requeridos: originalNotificationId, replyMessage, senderId"));
+                        "message", "Faltan campos requeridos: originalNotificationId, replyMessage"));
+            }
+
+            // El senderId SIEMPRE se toma del usuario autenticado (JWT), nunca
+            // del cuerpo de la petición: antes se confiaba en el "senderId"
+            // que mandaba el propio cliente, así que cualquiera podía
+            // responder haciéndose pasar por otra persona.
+            var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+            Object principal = auth != null ? auth.getPrincipal() : null;
+            if (!(principal instanceof User currentUser)) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "No autenticado"));
             }
 
             Long originalNotificationId = Long.valueOf(request.get("originalNotificationId").toString());
             String replyMessage = (String) request.get("replyMessage");
-            Long senderId = Long.valueOf(request.get("senderId").toString());
-
-            System.out.println("Parsed values - ID: " + originalNotificationId + ", Message: " + replyMessage
-                    + ", Sender: " + senderId);
 
             // Get the original notification to find the recipient
             Notification originalNotification = notificationRepository.findById(originalNotificationId)
                     .orElseThrow(() -> new RuntimeException("Notificación original no encontrada"));
 
-            // Verify sender exists (for audit purposes)
-            userRepository.findById(senderId)
-                    .orElseThrow(() -> new RuntimeException("Remitente no encontrado"));
+            boolean esAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+            boolean esDestinatarioOriginal = originalNotification.getUser() != null
+                    && originalNotification.getUser().getId().equals(currentUser.getId());
+            // Solo quien recibió la notificación original (o un ADMIN) puede
+            // responderla; si no, cualquiera podía usar este endpoint para
+            // mandarle un mensaje a cualquier destinatario ajeno.
+            if (!esAdmin && !esDestinatarioOriginal) {
+                return ResponseEntity.status(403).body(Map.of(
+                        "success", false,
+                        "message", "No puedes responder a esta notificación"));
+            }
 
             User recipient = originalNotification.getUser();
 
@@ -314,7 +342,11 @@ public class NotificationController {
     @PostMapping("/fcm-token")
     public ResponseEntity<?> saveFcmToken(@RequestBody Map<String, Object> request) {
         try {
-            Long userId = Long.valueOf(request.get("userId").toString());
+            // El token FCM se asocia SIEMPRE al usuario autenticado, nunca al
+            // "userId" que mande el cliente: si no, cualquiera podía atar su
+            // propio dispositivo al userId de otra persona y empezar a
+            // recibir (o interceptar) sus notificaciones push.
+            Long userId = currentUserIdOrThrow();
             String token = (String) request.get("token");
             String deviceType = (String) request.get("deviceType");
             String deviceName = (String) request.get("deviceName");
@@ -342,6 +374,7 @@ public class NotificationController {
     /**
      * Remove all FCM tokens for a user
      */
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
     @DeleteMapping("/fcm-token/user/{userId}")
     public ResponseEntity<?> removeFcmTokens(@PathVariable Long userId) {
         try {
@@ -362,6 +395,7 @@ public class NotificationController {
     /**
      * Get active FCM token count
      */
+    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/fcm-token/count")
     public ResponseEntity<?> getFcmTokenCount() {
         try {

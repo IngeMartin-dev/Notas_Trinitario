@@ -3,6 +3,7 @@ package com.notastrinitario.app.controller;
 import com.notastrinitario.app.entity.Notification;
 import com.notastrinitario.app.repository.NotificationRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
@@ -18,6 +19,8 @@ public class MessageController {
         this.notificationRepository = notificationRepository;
     }
 
+    // Un usuario solo puede leer SUS propios mensajes; ver los de otro exige ADMIN.
+    @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<Map<String, Object>>> getUserMessages(@PathVariable Long userId) {
         List<Notification> notifications = notificationRepository.findByUserId(userId);
@@ -32,13 +35,29 @@ public class MessageController {
 
     @PostMapping("/{messageId}/read")
     public ResponseEntity<?> markAsRead(@PathVariable Long messageId) {
-        return notificationRepository.findById(messageId)
-            .map(notification -> {
-                notification.setRead(true);
-                notificationRepository.save(notification);
-                return ResponseEntity.ok().body(Map.of("success", true));
-            })
-            .orElse(ResponseEntity.notFound().build());
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        Object principal = auth != null ? auth.getPrincipal() : null;
+        if (!(principal instanceof com.notastrinitario.app.entity.User currentUser)) {
+            return ResponseEntity.status(401).body(Map.of("error", "No autenticado"));
+        }
+        boolean esAdmin = auth != null && auth.getAuthorities().stream().anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN"));
+
+        var notificationOpt = notificationRepository.findById(messageId);
+        if (notificationOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Notification notification = notificationOpt.get();
+        boolean esDueno = notification.getUser() != null
+                && notification.getUser().getId().equals(currentUser.getId());
+        // Antes cualquier cuenta logueada podía marcar como leído (o,
+        // indirectamente, indagar la existencia de) un mensaje ajeno con
+        // solo cambiar el id en la URL.
+        if (!esAdmin && !esDueno) {
+            return ResponseEntity.status(403).body(Map.of("error", "No puedes modificar este mensaje"));
+        }
+        notification.setRead(true);
+        notificationRepository.save(notification);
+        return ResponseEntity.ok().body(Map.of("success", true));
     }
 
     private Map<String, Object> mapToMessage(Notification n) {

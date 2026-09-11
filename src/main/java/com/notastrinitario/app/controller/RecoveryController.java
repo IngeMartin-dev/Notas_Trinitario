@@ -174,6 +174,7 @@ public class RecoveryController {
     }
 
     // Get recovery data for a student
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/recovery/{studentId}")
     public ResponseEntity<?> getRecoveryData(
             @PathVariable Long studentId,
@@ -236,6 +237,7 @@ public class RecoveryController {
     }
 
     // Save or update study plan (upsert)
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @PostMapping("/study-plan")
     public ResponseEntity<?> saveStudyPlan(@RequestBody Map<String, Object> payload) {
         try {
@@ -365,6 +367,7 @@ public class RecoveryController {
     }
 
     // Get all recovery plans
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/recovery-plans")
     public ResponseEntity<?> getAllRecoveryPlans(@RequestParam(required = false) Long teacherId) {
         try {
@@ -401,6 +404,7 @@ public class RecoveryController {
     }
 
     // Get recovery plans for a student
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/study-plans/{studentId}")
     public ResponseEntity<?> getStudyPlans(
             @PathVariable Long studentId,
@@ -438,6 +442,7 @@ public class RecoveryController {
     }
 
     // Delete study plan
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @DeleteMapping("/study-plan/{id}")
     public ResponseEntity<?> deleteStudyPlan(@PathVariable Long id, @RequestParam(required = false) Long teacherId) {
         try {

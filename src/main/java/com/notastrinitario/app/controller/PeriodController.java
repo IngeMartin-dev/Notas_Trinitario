@@ -4,6 +4,7 @@ import com.notastrinitario.app.entity.Period;
 import com.notastrinitario.app.repository.PeriodRepository;
 import com.notastrinitario.app.scheduled.PeriodScheduler;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -51,6 +52,7 @@ public class PeriodController {
         return ResponseEntity.ok(periods);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{periodNumber}/unlock")
     public ResponseEntity<?> unlockPeriod(@PathVariable Integer periodNumber, @RequestBody Map<String, Object> body) {
         try {
@@ -94,6 +96,7 @@ public class PeriodController {
         }
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{periodNumber}/schedule")
     public ResponseEntity<?> schedulePeriod(@PathVariable Integer periodNumber, @RequestBody Map<String, Object> body) {
         Period period;
@@ -156,6 +159,7 @@ public class PeriodController {
         }
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping("/initialize")
     public ResponseEntity<?> initializePeriods() {
         // Clean up duplicates first: keep only the lowest id for each period_number

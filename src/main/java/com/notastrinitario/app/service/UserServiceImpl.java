@@ -1,7 +1,5 @@
 package com.notastrinitario.app.service;
 
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.List;
@@ -341,7 +339,7 @@ public class UserServiceImpl implements UserService{
 
 		validateNewPassword(newPassword);
 
-		user.setPassword(hashSHA256(newPassword));
+		user.setPassword(com.notastrinitario.app.security.PasswordSecurity.hash(newPassword));
 		userRepository.save(user);
 	}
 
@@ -356,20 +354,12 @@ public class UserServiceImpl implements UserService{
 		validateNewPassword(newPassword);
 
 		User user = userOpt.get();
-		user.setPassword(hashSHA256(newPassword));
+		user.setPassword(com.notastrinitario.app.security.PasswordSecurity.hash(newPassword));
 		userRepository.save(user);
 	}
 
 	private boolean passwordMatches(String storedPassword, String currentPassword) {
-		if (storedPassword == null) return false;
-
-		String currentHash = hashSHA256(currentPassword);
-
-		if (storedPassword.length() == 64) {
-			return currentHash.equalsIgnoreCase(storedPassword);
-		}
-
-		return currentPassword.equals(storedPassword);
+		return com.notastrinitario.app.security.PasswordSecurity.matches(currentPassword, storedPassword);
 	}
 
 	private void validateNewPassword(String newPassword) {
@@ -378,19 +368,4 @@ public class UserServiceImpl implements UserService{
 		}
 	}
 
-	private String hashSHA256(String password) {
-		try {
-			MessageDigest digest = MessageDigest.getInstance("SHA-256");
-			byte[] hash = digest.digest(password.getBytes());
-			StringBuilder hexString = new StringBuilder();
-			for (byte b : hash) {
-				String hex = Integer.toHexString(0xff & b);
-				if (hex.length() == 1) hexString.append('0');
-				hexString.append(hex);
-			}
-			return hexString.toString();
-		} catch (NoSuchAlgorithmException e) {
-			throw new RuntimeException("Error al hashear la contraseña", e);
-		}
-	}
 }

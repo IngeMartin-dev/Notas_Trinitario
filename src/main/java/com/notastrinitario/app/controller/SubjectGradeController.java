@@ -180,11 +180,13 @@ public class SubjectGradeController {
         return ResponseEntity.ok(Map.of("deleted", id));
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/student/{studentId}")
     public List<SubjectGrade> getGradesByStudent(@PathVariable Long studentId) {
         return subjectGradeService.getGradesByStudentId(studentId);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/student/{studentId}/period/{period}")
     public List<SubjectGrade> getGradesByStudentAndPeriod(
             @PathVariable Long studentId,
@@ -192,6 +194,7 @@ public class SubjectGradeController {
         return subjectGradeService.getGradesByStudentIdAndPeriod(studentId, period);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/classroom")
     public ResponseEntity<?> getGradesByClassroom(
             @RequestParam String grade,
@@ -225,6 +228,7 @@ public class SubjectGradeController {
                 "subjects", subjects));
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/subjects")
     public ResponseEntity<?> getSubjects(
             @RequestParam String grade,
@@ -237,6 +241,7 @@ public class SubjectGradeController {
         return ResponseEntity.ok(subjects);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/grade-names")
     public ResponseEntity<?> getGradeNames(
             @RequestParam String grade,
@@ -250,6 +255,7 @@ public class SubjectGradeController {
         return ResponseEntity.ok(gradeNames);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/calculate")
     public ResponseEntity<?> calculateFinalGrade(
             @RequestParam Long studentId,
@@ -261,6 +267,7 @@ public class SubjectGradeController {
         return ResponseEntity.ok(result);
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/calculate-all")
     public ResponseEntity<?> calculateAllFinalGrades(
             @RequestParam String grade,
@@ -278,6 +285,7 @@ public class SubjectGradeController {
                 "subjects", subjects));
     }
 
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/students")
     public ResponseEntity<?> getStudents(
             @RequestParam String grade,

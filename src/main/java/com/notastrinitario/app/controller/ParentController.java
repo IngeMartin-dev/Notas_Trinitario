@@ -39,6 +39,49 @@ public class ParentController {
         this.notificationService = notificationService;
     }
 
+    /**
+     * GET /api/parents/me/children
+     *
+     * Devuelve ÚNICAMENTE los hijos vinculados al padre que está haciendo la
+     * petición (identificado por el JWT, nunca por un id que mande el
+     * cliente). Esto es lo que separa de verdad a cada cuenta de padre por
+     * el salón/grado de sus propios hijos: un padre no puede pedir los
+     * datos de otro salón cambiando un parámetro en la URL, porque aquí no
+     * se acepta ningún parámetro de estudiante/padre desde afuera.
+     *
+     * Requiere estar autenticado con rol PARENT (ver @PreAuthorize). Debe
+     * usarse desde el frontend en vez de pedir la lista completa de
+     * estudiantes cuando el usuario logueado es un padre de familia.
+     */
+    @GetMapping("/me/children")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('PARENT')")
+    public ResponseEntity<?> getMyChildren() {
+        var auth = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null || !(auth.getPrincipal() instanceof User currentParent)) {
+            return ResponseEntity.status(401).body(Map.of("error", "No autenticado"));
+        }
+
+        List<Student> children = studentService.findByParentId(currentParent.getId());
+        List<Map<String, Object>> result = new ArrayList<>();
+        if (children != null) {
+            for (Student s : children) {
+                Map<String, Object> map = new LinkedHashMap<>();
+                map.put("id", s.getId());
+                map.put("name", s.getName());
+                map.put("surname", s.getSurname());
+                map.put("documentNumber", s.getDocumentNumber());
+                map.put("grade", s.getGrade());
+                map.put("classGroup", s.getClassGroup());
+                result.add(map);
+            }
+        }
+        return ResponseEntity.ok(Map.of("children", result));
+    }
+
+    // Vista administrativa: padres agrupados por grado/salón. Es personal
+    // del colegio quien necesita ver esto, no una cuenta de padre (que ya
+    // tiene su propia vista acotada en /me/children).
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('ADMIN','DIRECTOR_DE_GRUPO')")
     @GetMapping("/by-grade-classroom")
     public Map<String, Object> getByGradeAndClassroom(
             @RequestParam String grade,
@@ -130,6 +173,7 @@ public class ParentController {
     }
 
     @PostMapping
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createParent(@RequestBody Map<String, String> body) {
         String name = body.get("name") != null ? body.get("name").trim() : null;
         String surname = body.get("surname") != null ? body.get("surname").trim() : null;
@@ -175,7 +219,7 @@ public class ParentController {
         parent.setSurname(surname.trim());
         parent.setUsername(username);
         parent.setEmail(email.trim());
-        parent.setPassword(com.notastrinitario.app.controller.AuthController.hashSHA256(password));
+        parent.setPassword(com.notastrinitario.app.security.PasswordSecurity.hash(password));
         parent.setEnable(true);
 
         var role = roleRepository.findByName("PARENT");
@@ -222,6 +266,7 @@ public class ParentController {
 
     @PostMapping("/assign")
     @Transactional
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> assignParentToStudent(@RequestBody Map<String, Long> request) {
         Long studentId = request.get("studentId");
         Long parentId = request.get("parentId");
@@ -262,6 +307,7 @@ public class ParentController {
     }
 
     @DeleteMapping("/unassign")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> unassignParentFromStudent(@RequestBody Map<String, Long> request) {
         Long studentId = request.get("studentId");
         Long parentId = request.get("parentId");

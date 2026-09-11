@@ -9,12 +9,20 @@ import com.notastrinitario.app.service.ReportCardService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+// El frontend no llama a ninguna ruta de /api/reportcards (usa el sistema
+// de /api/boletines en su lugar). Antes get/pdf/print/status/history
+// aceptaban CUALQUIER id sin comprobar dueño: una cuenta de padre podía
+// pedir el PDF del boletín de un estudiante que no fuera su hijo con solo
+// cambiar el número en la URL. Como es personal del colegio quien de
+// verdad necesita esto, se restringe toda la clase.
+@PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
 @RestController
 @RequestMapping("/api/reportcards")
 public class ReportCardController {

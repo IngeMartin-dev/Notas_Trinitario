@@ -6,6 +6,7 @@ import com.notastrinitario.app.repository.SubjectRepository;
 import com.notastrinitario.app.repository.UserRepository;
 import com.notastrinitario.app.service.NotificationService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
@@ -39,6 +40,7 @@ public class SubjectController {
         return subjectRepository.findAll();
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PostMapping
     public ResponseEntity<?> createSubject(@RequestBody Subject subject) {
         if (subject.getCode() != null && !subject.getCode().isBlank()) {
@@ -70,12 +72,14 @@ public class SubjectController {
         return ResponseEntity.ok(created);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}")
     public Subject updateSubject(@PathVariable Long id, @RequestBody Subject subject) {
         subject.setId(id);
         return subjectRepository.save(subject);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSubject(@PathVariable Long id) {
         subjectRepository.deleteById(id);
@@ -87,6 +91,7 @@ public class SubjectController {
         return subjectRepository.findByLevel(level);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @PutMapping("/{id}/teacher/{teacherId}")
     public ResponseEntity<?> assignTeacher(
             @PathVariable Long id,
@@ -110,6 +115,7 @@ public class SubjectController {
         return subjectRepository.findByTeacher_Id(teacherId);
     }
 
+    @PreAuthorize("hasRole('ADMIN')")
     @DeleteMapping("/{id}/teacher")
     public ResponseEntity<?> removeTeacher(@PathVariable Long id) {
         Subject subject = subjectRepository.findById(id).orElse(null);

@@ -12,7 +12,15 @@ public class AppProperties {
     private Ai ai = new Ai();
 
     public static class Jwt {
-        private String secret = "a1b8aeb3b0cc2a4edf36f8fdc905bf730443be2cc98d689f6fc9c1e1d3c28efedf5701d17bf2de7bbf44f1693f8570dd015dad1500e744ea02869354b9042eca";
+        // IMPORTANTE (seguridad): NUNCA pongas aquí un valor por defecto.
+        // Este secreto firma todos los tokens de sesión de la app; si queda
+        // hardcodeado y el repositorio es público, cualquiera puede
+        // fabricar un token válido (incluso de ADMIN) sin conocer ninguna
+        // contraseña. Debe llegar SIEMPRE desde una variable de entorno:
+        //   APP_JWT_SECRET=<valor aleatorio largo, ej: openssl rand -hex 64>
+        // JwtUtil valida en el arranque que este valor no sea nulo/vacío ni
+        // el antiguo valor filtrado, y la aplicación no arrancará si falta.
+        private String secret;
         private long expiration = 604800000;
         private long refreshExpiration = 2592000000L;
 

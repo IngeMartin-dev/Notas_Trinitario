@@ -41,6 +41,7 @@ public class BoletinController {
     // ─────────────────────────────────────────────────────────────────
     // GET /api/boletines/pdf-base  – boletín de ejemplo en classpath
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/pdf-base")
     public ResponseEntity<Resource> getPdfBase() throws IOException {
         Resource pdfResource = resourceLoader.getResource("classpath:static/Boletin_Base.pdf");
@@ -57,6 +58,7 @@ public class BoletinController {
     // ─────────────────────────────────────────────────────────────────
     // GET /api/boletines/estudiantes
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/estudiantes")
     public ResponseEntity<List<Student>> getStudents(
             @RequestParam String grade,
@@ -68,6 +70,7 @@ public class BoletinController {
     // ─────────────────────────────────────────────────────────────────
     // GET /api/boletines/materias
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/materias")
     public ResponseEntity<List<String>> getSubjects(
             @RequestParam String grade,
@@ -88,6 +91,7 @@ public class BoletinController {
     // Devuelve TODAS las materias del grupo filtradas por el rango de grado
     // (primaria 1-5, bachillerato 6-9, media 10-11).
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/materias-todas")
     public ResponseEntity<List<String>> getAllSubjects(
             @RequestParam String grade,
@@ -106,6 +110,7 @@ public class BoletinController {
     // GET /api/boletines/nivel-grado
     // Devuelve el nivel académico del grado: primaria / bachillerato / media.
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/nivel-grado")
     public ResponseEntity<Map<String, Object>> getNivelGrado(@RequestParam String grade) {
         int gradeNum = 0;
@@ -308,6 +313,7 @@ public class BoletinController {
     // nuevo primero), usada por el sondeo (polling) del frontend para
     // mostrar el progreso de la generación en curso.
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/generaciones")
     public ResponseEntity<List<com.notastrinitario.app.service.GenerationJob>> listarGeneraciones() {
         try {
@@ -323,6 +329,7 @@ public class BoletinController {
     // descarga el PDF de un estudiante puntual ya generado dentro de un
     // job (vista previa o descarga, según cómo lo use el frontend).
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/generaciones/{jobId}/archivo/{studentId}")
     public ResponseEntity<?> descargarArchivoDeGeneracion(
             @PathVariable String jobId,
@@ -367,6 +374,7 @@ public class BoletinController {
     // ─────────────────────────────────────────────────────────────────
     // POST /api/boletines/drafts  – guarda un borrador del formulario
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @PostMapping("/drafts")
     public ResponseEntity<?> saveDraft(@RequestBody Map<String, Object> request) {
         try {
@@ -393,6 +401,7 @@ public class BoletinController {
     // ─────────────────────────────────────────────────────────────────
     // GET /api/boletines/drafts  – lista borradores por grado y salón
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/drafts")
     public ResponseEntity<List<Map<String, Object>>> getDrafts(
             @RequestParam String grade,
@@ -421,6 +430,7 @@ public class BoletinController {
     // ─────────────────────────────────────────────────────────────────
     // GET /api/boletines/firmas
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/firmas")
     public ResponseEntity<List<Map<String, String>>> getSignatures() {
         try {
@@ -442,6 +452,7 @@ public class BoletinController {
     // ─────────────────────────────────────────────────────────────────
     // POST /api/boletines/firmas/upload
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @PostMapping("/firmas/upload")
     public ResponseEntity<?> uploadSignature(@RequestParam("file") MultipartFile file) {
         try {
@@ -468,6 +479,7 @@ public class BoletinController {
     // ─────────────────────────────────────────────────────────────────
     // GET /api/boletines/escala
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/escala")
     public ResponseEntity<Map<String, String>> getEscala() {
         Map<String, String> escala = new LinkedHashMap<>();
@@ -481,6 +493,7 @@ public class BoletinController {
     // ─────────────────────────────────────────────────────────────────
     // GET /api/boletines/nivel
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/nivel")
     public ResponseEntity<Map<String, String>> getNivel(@RequestParam String grade) {
         BoletinService.AcademicLevel level = boletinService.getAcademicLevel(grade);
@@ -495,6 +508,7 @@ public class BoletinController {
     // ─────────────────────────────────────────────────────────────────
     // GET /api/boletines/promedios
     // ─────────────────────────────────────────────────────────────────
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/promedios")
     public ResponseEntity<List<Map<String, Object>>> getPromedios(
             @RequestParam String grade,
@@ -529,6 +543,7 @@ public class BoletinController {
     // Materias reprobadas (no promedio general) de cada estudiante del
     // salón, para el período que se está generando. Usado por la vista
     // previa "materias perdidas" antes de generar los boletines.
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
     @GetMapping("/materias-perdidas")
     public ResponseEntity<List<Map<String, Object>>> getMateriasPerdidas(
             @RequestParam String grade,

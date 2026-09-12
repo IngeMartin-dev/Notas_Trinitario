@@ -3,6 +3,7 @@ package com.notastrinitario.app.controller;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.Collections;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -32,13 +33,16 @@ public class UserController {
     private final UserService userService;
     private final com.notastrinitario.app.repository.UserRepository userRepository;
     private final com.notastrinitario.app.repository.RoleRepository roleRepository;
+    private final com.notastrinitario.app.repository.StudentRepository studentRepository;
 
     public UserController(UserService userService,
                            com.notastrinitario.app.repository.UserRepository userRepository,
-                           com.notastrinitario.app.repository.RoleRepository roleRepository) {
+                           com.notastrinitario.app.repository.RoleRepository roleRepository,
+                           com.notastrinitario.app.repository.StudentRepository studentRepository) {
         this.userService = userService;
         this.userRepository = userRepository;
         this.roleRepository = roleRepository;
+        this.studentRepository = studentRepository;
     }
 	
 	//Create a new user
@@ -421,6 +425,10 @@ public class UserController {
     // Lista TODOS los usuarios con rol (a diferencia de /sin-rol), agrupables
     // en el frontend por pestaña Padres / Profesores / Administradores, más
     // si ya tienen el rol ADMIN "extra" sumado (ver `additionalAdmin`).
+    // Para los usuarios con rol PARENT se agrega además "hijos": la lista
+    // de estudiantes enlazados a esa cuenta, con su grado y salón actual,
+    // para que el administrador sepa exactamente de qué salón es padre
+    // antes de decidir si le suma (o le quita) el rol de Administrador.
     @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/gestion-roles")
     public ResponseEntity<?> usuariosGestionRoles() {
@@ -436,6 +444,23 @@ public class UserController {
                     m.put("roleId", u.getRole().getId());
                     m.put("roleName", u.getRole().getName());
                     m.put("additionalAdmin", u.getAdditionalAdmin());
+
+                    if ("PARENT".equalsIgnoreCase(u.getRole().getName())) {
+                        List<Map<String, Object>> hijos = studentRepository.findByParentId(u.getId()).stream()
+                                .map(hijo -> {
+                                    Map<String, Object> h = new HashMap<>();
+                                    h.put("studentId", hijo.getId());
+                                    h.put("name", hijo.getName());
+                                    h.put("surname", hijo.getSurname());
+                                    h.put("grade", hijo.getGrade());
+                                    h.put("classroom", hijo.getClassGroup());
+                                    h.put("active", hijo.isActive());
+                                    return h;
+                                }).collect(Collectors.toList());
+                        m.put("hijos", hijos);
+                    } else {
+                        m.put("hijos", Collections.emptyList());
+                    }
                     return m;
                 }).collect(Collectors.toList());
         return ResponseEntity.ok(dto);

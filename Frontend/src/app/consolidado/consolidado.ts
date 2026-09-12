@@ -2,6 +2,7 @@ import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { Router } from '@angular/router';
 
 /**
  * Antes "Reports" (src/app/reports). Renombrado a "Consolidado":
@@ -34,7 +35,13 @@ export class Consolidado {
 
   private readonly API_BASE = 'http://localhost:8080/api/consolidado';
 
-  constructor(private http: HttpClient, private sanitizer: DomSanitizer) {}
+  constructor(private http: HttpClient, private sanitizer: DomSanitizer, private router: Router) {}
+
+  /** Abre el apartado "Consolidados Generados": lista de solo lectura de
+   *  todos los consolidados ya generados y guardados en disco. */
+  verConsolidadosGenerados() {
+    this.router.navigate(['/consolidados-generados']);
+  }
 
   selectGrade(grade: string, classroom: string) {
     this.selectedGrade = grade;

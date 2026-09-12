@@ -49,6 +49,11 @@ public class ConsolidadoService {
     private static final String LOGO_CLASSPATH = "Logo Colegio.png";
     private static final String NOMBRE_INSTITUCION = "CORPORACIÓN COLEGIO TRINITARIO";
 
+    /** Carpeta donde quedan guardados los consolidados ya generados, mismo
+     *  patrón que "Boletines Generados" de BoletinService: Consolidados
+     *  Generados/Periodo N/{grado}{salón}/archivo.pdf */
+    private static final String OUT_DIR = System.getProperty("user.dir") + File.separator + "Consolidados Generados";
+
     private final SubjectGradeService subjectGradeService;
     private final BoletinService boletinService; // reutiliza el wrapper de Playwright
     private final HomeroomAssignmentRepository homeroomAssignmentRepository;
@@ -72,6 +77,52 @@ public class ConsolidadoService {
                                          List<Student> estudiantes, List<String> materias) throws IOException {
         String html = construirHtmlConsolidado(grade, classroom, period, estudiantes, materias);
         return boletinService.generarPdfDesdeHtml(html);
+    }
+
+    // ─────────────────────────────────────────────────────────────────
+    // "Consolidados Generados" — guardado en disco + listado/descarga
+    // (mismo patrón que "Boletines Generados" de BoletinService).
+    // ─────────────────────────────────────────────────────────────────
+
+    /** Carpeta base "Consolidados Generados/" (ruta absoluta), usada por
+     *  ConsolidadoController para listar/descargar consolidados ya generados. */
+    public String getOutDirPath() {
+        return OUT_DIR;
+    }
+
+    /** Guarda el PDF ya generado en "Consolidados Generados/Periodo N/{grado}{salón}/{fileName}",
+     *  sobrescribiendo si ya existía uno con el mismo nombre (se vuelve a
+     *  generar el mismo grado/salón/período). Devuelve la ruta guardada. */
+    public java.nio.file.Path guardarConsolidadoPDF(String grade, String classroom, Integer period,
+                                                      byte[] pdfBytes, String fileName) throws IOException {
+        java.nio.file.Path dir = resolvePeriodoSalonDir(period, grade, classroom);
+        java.nio.file.Path destino = dir.resolve(fileName);
+        Files.write(destino, pdfBytes);
+        return destino;
+    }
+
+    private java.nio.file.Path resolvePeriodoSalonDir(Integer period, String grade, String classroom) throws IOException {
+        String periodoCarpeta = "Periodo " + (period != null ? period : 1);
+        String salonCarpeta = extraerNumeroGrado(grade) + extraerLetraSalon(classroom);
+        java.nio.file.Path dir = Paths.get(OUT_DIR).resolve(periodoCarpeta).resolve(salonCarpeta);
+        if (!Files.exists(dir)) Files.createDirectories(dir);
+        return dir;
+    }
+
+    /** "Grado 7º" → "7". Si ya viene solo el número, lo deja igual. */
+    private String extraerNumeroGrado(String grade) {
+        if (grade == null) return "SinGrado";
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("(\\d+)").matcher(grade);
+        return m.find() ? m.group(1) : grade.trim();
+    }
+
+    /** "Salon A" / "Salón B" → "A" / "B". Si ya viene solo la letra, la deja igual. */
+    private String extraerLetraSalon(String classroom) {
+        if (classroom == null) return "";
+        String trimmed = classroom.trim();
+        String[] partes = trimmed.split("\\s+");
+        String ultimo = partes.length > 0 ? partes[partes.length - 1] : trimmed;
+        return ultimo.toUpperCase();
     }
 
     // ─────────────────────────────────────────────────────────────────

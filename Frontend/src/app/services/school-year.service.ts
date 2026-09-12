@@ -32,11 +32,24 @@ export interface RoleDto {
   name: string;
 }
 
+/** Un hijo/estudiante enlazado a una cuenta de padre, con su grado y salón
+ *  ACTUALES (se usa para mostrar el badge de grado/salón junto a cada
+ *  padre en el recuadro "Roles y permisos"). */
+export interface HijoGradoSalon {
+  studentId: number;
+  name: string;
+  surname: string;
+  grade: string;
+  classroom: string | null;
+  active: boolean;
+}
+
 /** Usuario para el recuadro "Roles y permisos" de Configuración de Año:
  *  a diferencia de UsuarioSinRol, este SÍ incluye a todos los usuarios que
  *  ya tienen un rol (para poder listarlos en sus pestañas Padres /
  *  Profesores / Administradores), más si tienen el rol ADMIN "extra"
- *  sumado además de su rol principal. */
+ *  sumado además de su rol principal. Para los usuarios PARENT, además
+ *  trae "hijos" con el grado/salón de cada estudiante a su cargo. */
 export interface UsuarioGestionRol {
   id: number;
   name: string;
@@ -46,6 +59,7 @@ export interface UsuarioGestionRol {
   roleId: number;
   roleName: string; // 'ADMIN' | 'TEACHER' | 'PARENT'
   additionalAdmin: boolean;
+  hijos: HijoGradoSalon[];
 }
 
 @Injectable({ providedIn: 'root' })

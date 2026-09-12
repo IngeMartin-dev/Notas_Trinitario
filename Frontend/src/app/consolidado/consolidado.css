@@ -20,6 +20,30 @@
 
 .page-subtitle { color: var(--text-3); font-size: 0.9rem; margin: 0; }
 
+.ver-generados-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.ver-generados-btn:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.ver-generados-btn .material-icons { font-size: 18px; }
+
+
 .reports-layout { display: flex; gap: 24px; align-items: flex-start; }
 
 .reports-sidebar {

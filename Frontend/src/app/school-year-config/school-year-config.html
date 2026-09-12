@@ -105,6 +105,20 @@
             <div class="syc-user-info">
               <strong>{{ user.name }} {{ user.surname }}</strong>
               <span>{{ user.username }} · {{ user.email }}</span>
+              @if (user.roleName === 'PARENT') {
+                <div class="syc-hijos-badges">
+                  @if (user.hijos.length === 0) {
+                    <span class="syc-hijo-badge syc-hijo-badge--vacio">Sin estudiantes vinculados</span>
+                  }
+                  @for (hijo of user.hijos; track hijo.studentId) {
+                    <span class="syc-hijo-badge" [class.syc-hijo-badge--inactivo]="!hijo.active">
+                      <span class="material-icons">school</span>
+                      {{ hijo.name }} {{ hijo.surname }} · {{ hijo.grade }}{{ hijo.classroom ? ' - ' + hijo.classroom : '' }}
+                      @if (!hijo.active) { <em>(inactivo)</em> }
+                    </span>
+                  }
+                </div>
+              }
             </div>
             @if (user.roleName === 'ADMIN') {
               <span class="syc-count-badge">Administrador</span>

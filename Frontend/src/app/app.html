@@ -112,6 +112,12 @@
                     <span class="menu-text">Consolidados</span>
                   </a>
                 </li>
+                <li [class.active]="activeRoute() === 'consolidados-generados'">
+                  <a routerLink="/consolidados-generados" (click)="setActiveRoute('consolidados-generados')">
+                    <span class="material-icons">folder_special</span>
+                    <span class="menu-text">Consolidados Generados</span>
+                  </a>
+                </li>
               }
               <!-- Chats: cualquier rol reconocido (dentro del chat, los padres no ven profesores/admins, según regla propia del chat) -->
               @if (hasKnownRole()) {

@@ -67,6 +67,11 @@ export const routes: Routes = [
     canActivate: [roleGuard(DIRECTOR_OR_ADMIN)]
   },
   {
+    path: 'consolidados-generados',
+    loadComponent: () => import('./consolidados-generados/consolidados-generados').then(m => m.ConsolidadosGenerados),
+    canActivate: [roleGuard(DIRECTOR_OR_ADMIN)]
+  },
+  {
     path: 'chats',
     loadComponent: () => import('./chats/chats').then(m => m.Chats),
     canActivate: [roleGuard(ANY_KNOWN_ROLE)]

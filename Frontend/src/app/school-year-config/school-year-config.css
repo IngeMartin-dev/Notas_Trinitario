@@ -253,6 +253,43 @@
   font-size: 0.75rem;
 }
 
+.syc-hijos-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.syc-hijo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.syc-hijo-badge .material-icons {
+  font-size: 0.9rem;
+}
+
+.syc-hijo-badge--vacio {
+  color: var(--text-4);
+  font-style: italic;
+}
+
+.syc-hijo-badge--inactivo {
+  opacity: 0.6;
+}
+
+.syc-hijo-badge--inactivo em {
+  font-style: italic;
+}
+
 .syc-user-row select {
   background: var(--surface);
   border: 1px solid var(--border);

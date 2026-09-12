@@ -290,6 +290,52 @@
   font-style: italic;
 }
 
+.syc-hijo-badge--rolorigen {
+  background: var(--brand-50, var(--surface));
+  color: var(--brand);
+  font-weight: 600;
+  border-color: transparent;
+}
+
+.syc-grado-salon-filtros {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.syc-filtro-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.syc-filtro-chip .material-icons {
+  font-size: 0.95rem;
+}
+
+.syc-filtro-chip:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
+.syc-filtro-chip.active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
 .syc-user-row select {
   background: var(--surface);
   border: 1px solid var(--border);

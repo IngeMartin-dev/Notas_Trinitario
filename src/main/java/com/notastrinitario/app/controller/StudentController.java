@@ -171,45 +171,6 @@ public class StudentController {
     }
 
     @PreAuthorize("hasRole('ADMIN')")
-    @PostMapping("/populate-test-data")
-    public String populateTestData() {
-        // Check if we already have students
-        if (!studentService.findAll().isEmpty()) {
-            return "Students already exist in database";
-        }
-        
-        // Create sample students
-        String[][] testStudents = {
-            {"Ana", "González", "Grado 1º", "Salon A", "100000001"},
-            {"Carlos", "Pérez", "Grado 1º", "Salon A", "100000002"},
-            {"María", "Rodríguez", "Grado 1º", "Salon B", "100000003"},
-            {"Juan", "López", "Grado 1º", "Salon B", "100000004"},
-            {"Luis", "Martín", "Grado 2º", "Salon A", "100000005"},
-            {"Elena", "Sánchez", "Grado 2º", "Salon A", "100000006"},
-            {"Pedro", "García", "Grado 3º", "Salon A", "100000007"},
-            {"Carmen", "Fernández", "Grado 3º", "Salon A", "100000008"},
-            {"Sofia", "Torres", "Grado 5º", "Salon A", "100000009"},
-            {"Diego", "Ruiz", "Grado 5º", "Salon A", "100000010"},
-            {"Andrea", "Jiménez", "Grado 10º", "Salon A", "100000011"},
-            {"Roberto", "Moreno", "Grado 10º", "Salon A", "100000012"},
-            {"Fernando", "Álvarez", "Grado 11º", "Salon A", "100000013"},
-            {"Laura", "Castillo", "Grado 11º", "Salon A", "100000014"}
-        };
-        
-        for (String[] studentData : testStudents) {
-            Student student = new Student();
-            student.setName(studentData[0]);
-            student.setSurname(studentData[1]);
-            student.setGrade(studentData[2]);
-            student.setClassGroup(studentData[3]);
-            student.setDocumentNumber(studentData[4]);
-            studentService.save(student);
-        }
-        
-        return "Test data populated successfully! " + testStudents.length + " students added.";
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
     @GetMapping("/test-simple")
     public List<Student> getAllStudentsSimple() {
         List<Student> students = studentService.findAll();

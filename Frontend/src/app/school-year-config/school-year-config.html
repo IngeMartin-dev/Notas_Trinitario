@@ -75,7 +75,9 @@
     <h3><span class="material-icons">admin_panel_settings</span> Roles y permisos</h3>
     <p class="syc-hint">
       Todos los usuarios, agrupados por su rol. Desde Padres o Profesores puedes sumarle el rol de
-      Administrador a alguien sin quitarle el que ya tiene.
+      Administrador a alguien sin quitarle el que ya tiene. La pestaña Administradores reúne a
+      TODOS los que hoy tienen privilegios de Admin (los que ya lo tienen de por sí, más los que se
+      les sumó desde Padres o Profesores), con la opción de quitárselo.
     </p>
 
     <div class="syc-role-tabs">
@@ -90,12 +92,33 @@
       </button>
     </div>
 
+    @if (activeRoleTab === 'PARENT' && gradosSalonesConPadres.length > 0) {
+      <div class="syc-grado-salon-filtros">
+        <button type="button" class="syc-filtro-chip" [class.active]="selectedParentGradoSalon === null"
+                (click)="selectGradoSalonFiltro(null)">
+          Todos
+        </button>
+        @for (gs of gradosSalonesConPadres; track gs) {
+          <button type="button" class="syc-filtro-chip" [class.active]="selectedParentGradoSalon === gs"
+                  (click)="selectGradoSalonFiltro(gs)">
+            <span class="material-icons">meeting_room</span> {{ gs }}
+          </button>
+        }
+      </div>
+    }
+
     @if (loadingGestion) {
       <p class="syc-hint">Cargando...</p>
     }
 
     @if (!loadingGestion && usuariosDeLaPestanaActiva.length === 0) {
-      <p class="syc-empty">No hay usuarios en esta pestaña.</p>
+      <p class="syc-empty">
+        @if (activeRoleTab === 'PARENT' && selectedParentGradoSalon) {
+          Ningún padre tiene un estudiante en {{ selectedParentGradoSalon }}.
+        } @else {
+          No hay usuarios en esta pestaña.
+        }
+      </p>
     }
 
     @if (!loadingGestion && usuariosDeLaPestanaActiva.length > 0) {
@@ -105,6 +128,11 @@
             <div class="syc-user-info">
               <strong>{{ user.name }} {{ user.surname }}</strong>
               <span>{{ user.username }} · {{ user.email }}</span>
+              @if (activeRoleTab === 'ADMIN' && user.roleName !== 'ADMIN') {
+                <span class="syc-hijo-badge syc-hijo-badge--rolorigen">
+                  Rol principal: {{ user.roleName === 'TEACHER' ? 'Profesor' : 'Padre de familia' }}
+                </span>
+              }
               @if (user.roleName === 'PARENT') {
                 <div class="syc-hijos-badges">
                   @if (user.hijos.length === 0) {

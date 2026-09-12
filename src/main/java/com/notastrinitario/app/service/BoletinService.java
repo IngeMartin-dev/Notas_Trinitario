@@ -716,7 +716,10 @@ public class BoletinService {
             case 4 -> sd.getnFinalPeriod4();
             default -> null;
         } : null;
-        String notaNumerica = notaDelPeriodoActual != null ? String.format("%.1f", notaDelPeriodoActual) : "";
+        // La nota se muestra con sus 2 decimales EXACTOS (mismo valor ya
+        // calculado/redondeado a 2 decimales en SubjectGradeService), sin
+        // truncarla a 1 decimal como antes.
+        String notaNumerica = notaDelPeriodoActual != null ? String.format("%.2f", notaDelPeriodoActual) : "";
 
         // ── Acumulado: 0.25 × N.FINAL del período + acumulado del período anterior.
         // Ej.: P1 = 0.25×N.FINAL(P1) ; P2 = 0.25×N.FINAL(P2) + P1 ; P3 =
@@ -765,7 +768,8 @@ public class BoletinService {
                 notaTexto = "0";
                 letraTexto = "";
             } else if (nFinal != null) {
-                notaTexto = String.format("%.1f", nFinal);
+                // 2 decimales exactos (no se trunca a 1 decimal).
+                notaTexto = String.format("%.2f", nFinal);
                 letraTexto = scaleLetter(nFinal);
             } else {
                 notaTexto = "0";
@@ -899,7 +903,7 @@ public class BoletinService {
         // disponible en el marcador por si el diseño la necesita en algún
         // punto adicional; el acumulado sí usa el número real.
         r.put("{{NOTA_COMPORTAMIENTO}}", notaPeriodoActualCompSocial != null
-                ? String.format("%.1f", notaPeriodoActualCompSocial)
+                ? String.format("%.2f", notaPeriodoActualCompSocial)
                 : "");
         r.put("{{ACUMULADO_COMPORTAMIENTO}}", periodoActual != null
                 ? String.format("%.2f", acumuladoCompSocial) + "%"
@@ -939,7 +943,8 @@ public class BoletinService {
             if (letra.isEmpty() && p == periodoParaCalculo) {
                 letra = "E";
             }
-            String notaTexto = valor != null ? String.format("%.1f", valor) : "0";
+            // 2 decimales exactos (no se trunca a 1 decimal).
+            String notaTexto = valor != null ? String.format("%.2f", valor) : "0";
 
             r.put("{{P" + p + "_ACUDIENTE}}", notaTexto);
             r.put("{{ESCALA_P" + p + "_ACUDIENTE}}", letra);
@@ -962,7 +967,7 @@ public class BoletinService {
         r.put("{{FAA_ACUDIENTE}}", indicadorTexto(vaFaa));
         r.put("{{ESCALA_FINAL_ACUDIENTE}}", escalaConductualLabel(letraFinalAcudiente));
         r.put("{{NOTA_ACUDIENTE}}", notaPeriodoActualAcudiente != null
-                ? String.format("%.1f", notaPeriodoActualAcudiente)
+                ? String.format("%.2f", notaPeriodoActualAcudiente)
                 : "0");
         r.put("{{ACUMULADO_ACUDIENTE}}", periodoActual != null
                 ? String.format("%.2f", acumuladoAcudiente) + "%"

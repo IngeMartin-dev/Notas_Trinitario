@@ -61,6 +61,11 @@ export class SchoolYearConfig implements OnInit {
   activeRoleTab: 'PARENT' | 'TEACHER' | 'ADMIN' = 'PARENT';
   togglingAdminExtra: { [userId: number]: boolean } = {};
 
+  /** Filtro por "Grado X - Salón Y" dentro de la pestaña Padres: al elegir
+   *  un botón, solo se muestran los padres que tengan al menos un hijo en
+   *  ese grado/salón. null = sin filtro (se ven todos los padres). */
+  selectedParentGradoSalon: string | null = null;
+
   ngOnInit() {
     this.loadConfig();
     this.loadPendientes();
@@ -358,13 +363,62 @@ export class SchoolYearConfig implements OnInit {
 
   setRoleTab(tab: 'PARENT' | 'TEACHER' | 'ADMIN') {
     this.activeRoleTab = tab;
+    if (tab !== 'PARENT') {
+      // El filtro de grado/salón solo aplica dentro de Padres; al salir de
+      // esa pestaña se limpia para que no quede "pegado" si se vuelve luego.
+      this.selectedParentGradoSalon = null;
+    }
+  }
+
+  /** Etiqueta "Grado X - Salón Y" única por cada combinación real que
+   *  tenga al menos un hijo de algún padre (para pintar los botones de
+   *  filtro). Ordenada numéricamente por grado. */
+  get gradosSalonesConPadres(): string[] {
+    const set = new Set<string>();
+    for (const u of this.usuariosGestion) {
+      if (u.roleName !== 'PARENT') continue;
+      for (const hijo of u.hijos) {
+        if (!hijo.grade) continue;
+        const etiqueta = hijo.classroom ? `${hijo.grade} - ${hijo.classroom}` : hijo.grade;
+        set.add(etiqueta);
+      }
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }
+
+  /** Selecciona (o quita, si ya estaba activo) el filtro de grado/salón de
+   *  la pestaña Padres. null = "Todos". */
+  selectGradoSalonFiltro(valor: string | null) {
+    this.selectedParentGradoSalon = this.selectedParentGradoSalon === valor ? null : valor;
   }
 
   get usuariosDeLaPestanaActiva(): UsuarioGestionRol[] {
-    return this.usuariosGestion.filter(u => u.roleName === this.activeRoleTab);
+    if (this.activeRoleTab === 'ADMIN') {
+      // "Administradores" debe mostrar a TODO el que hoy tiene privilegios
+      // reales de Administrador: los que lo tienen como rol principal, MÁS
+      // los que lo tienen como rol "extra" sumado desde Padres o Profesores
+      // (additionalAdmin) — no solo los que tienen roleName === 'ADMIN'.
+      return this.usuariosGestion.filter(u => u.roleName === 'ADMIN' || u.additionalAdmin);
+    }
+
+    let lista = this.usuariosGestion.filter(u => u.roleName === this.activeRoleTab);
+
+    if (this.activeRoleTab === 'PARENT' && this.selectedParentGradoSalon) {
+      const filtro = this.selectedParentGradoSalon;
+      lista = lista.filter(u => u.hijos.some(hijo => {
+        const etiqueta = hijo.classroom ? `${hijo.grade} - ${hijo.classroom}` : hijo.grade;
+        return etiqueta === filtro;
+      }));
+    }
+
+    return lista;
   }
 
   countPorRol(roleName: 'PARENT' | 'TEACHER' | 'ADMIN'): number {
+    if (roleName === 'ADMIN') {
+      // Mismo criterio que usuariosDeLaPestanaActiva: admins nativos + admins "extra".
+      return this.usuariosGestion.filter(u => u.roleName === 'ADMIN' || u.additionalAdmin).length;
+    }
     return this.usuariosGestion.filter(u => u.roleName === roleName).length;
   }
 

@@ -190,31 +190,6 @@ export class Students implements OnInit {
       });
   }
 
-  addTestData() {
-    console.log('=== ADDING TEST DATA ===');
-    const populateUrl = 'http://localhost:8080/api/students/populate-test-data';
-    
-    this.http.post(populateUrl, {}).subscribe({
-      next: (response) => {
-        console.log('✅ Test data added successfully:', response);
-        // Retry fetching students after adding data
-        if (this.selectedGrade && this.selectedClassroom) {
-          setTimeout(() => {
-            this.fetchStudents(this.selectedGrade!, this.selectedClassroom!);
-          }, 1000);
-        }
-      },
-      error: (error) => {
-        console.error('❌ Failed to add test data:', error);
-        this.students = [];
-        // Delay for better UX and fade animation
-        setTimeout(() => {
-          this.hideLoading();
-        }, 800);
-      }
-    });
-  }
-
   printStudentsPDF() {
     console.log('=== GENERATING PDF WITH HIDDEN IFRAME (NO NEW TABS) ===');
     

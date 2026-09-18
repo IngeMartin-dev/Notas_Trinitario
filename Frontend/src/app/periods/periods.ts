@@ -230,8 +230,13 @@ export class Periods implements OnInit, OnDestroy {
   }
 
   isAdmin(): boolean {
-    const role = this.authService.getRole();
-    return role === 'ADMIN' || role === 'admin';
+    const user = this.authService.getCurrentUserValue();
+    const roleName = (user?.role?.name || user?.role || '').toString().toUpperCase();
+    // Igual que en app.ts/settings.ts/dashboard.ts: cuenta también el rol
+    // "extra" de Admin sumado desde Configuración de Año. getRole() (el
+    // string guardado en localStorage al iniciar sesión) nunca se entera
+    // de ese rol extra, por eso se usa el usuario completo de /api/auth/me.
+    return roleName === 'ADMIN' || !!user?.additionalAdmin;
   }
 
   getStatusText(isUnlocked: boolean): string {

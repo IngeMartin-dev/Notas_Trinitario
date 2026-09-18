@@ -537,7 +537,7 @@ export class Dashboard implements OnInit {
               this.isTeacherUser = true;
               this.loadTeacherSubjects(user.id);
             }
-            if (roleName === 'ADMIN') {
+            if (roleName === 'ADMIN' || user.additionalAdmin) {
               this.checkFechaFinDeAno();
             }
           }
@@ -939,7 +939,11 @@ export class Dashboard implements OnInit {
 
   isAdmin(): boolean {
     const user = this.currentUser();
-    return user && user.role && user.role.name === 'ADMIN';
+    if (!user) return false;
+    const roleName = (user.role?.name || user.role || '').toString().toUpperCase();
+    // Igual que en app.ts/settings.ts: cuenta también el rol "extra" de
+    // Admin sumado desde Configuración de Año (User.additionalAdmin).
+    return roleName === 'ADMIN' || !!user.additionalAdmin;
   }
 
   // Send Notification Modal Methods

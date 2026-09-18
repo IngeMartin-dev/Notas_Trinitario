@@ -497,8 +497,10 @@ export class App implements OnInit, OnDestroy {
   }
 
   isDirectorOrAdmin(): boolean {
-    const role = this.getRoleName();
-    return role === 'ADMIN' || role === 'DIRECTOR_DE_GRUPO';
+    // Igual que isAdmin(): el rol "extra" de Admin también debe ver estos
+    // enlaces (Consolidados, etc.), no solo quien ya era ADMIN o
+    // DIRECTOR_DE_GRUPO de nacimiento.
+    return this.isAdmin() || this.getRoleName() === 'DIRECTOR_DE_GRUPO';
   }
 
   isParent(): boolean {

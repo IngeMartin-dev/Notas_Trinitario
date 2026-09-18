@@ -21,7 +21,14 @@ export function roleGuard(allowedRoles: string[]): CanActivateFn {
     const user = authService.getCurrentUserValue();
     const roleName: string = user?.role?.name ?? '';
 
-    if (allowedRoles.includes(roleName)) {
+    // Cuenta también el rol "extra" de Admin sumado desde Configuración de
+    // Año (ver User.additionalAdmin en el backend): si la ruta admite
+    // ADMIN, un padre o profesor con ese extra debe poder entrar igual que
+    // un admin nativo, o de lo contrario el guard lo manda de vuelta al
+    // Panel aunque el backend sí le esté dando el permiso.
+    const esAdminExtra = !!user?.additionalAdmin && allowedRoles.includes('ADMIN');
+
+    if (allowedRoles.includes(roleName) || esAdminExtra) {
       return true;
     }
 

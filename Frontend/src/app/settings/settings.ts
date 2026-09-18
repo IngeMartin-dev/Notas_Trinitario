@@ -347,11 +347,12 @@ export class Settings implements OnInit, OnDestroy {
     
   isAdmin(): boolean {
     const user = this.currentUser();
-    if (user && user.role) {
-      const roleName = user.role.name || user.role;
-      return roleName === 'ADMIN' || roleName === 'admin';
-    }
-    return false;
+    if (!user) return false;
+    const roleName = (user.role?.name || user.role || '').toString().toUpperCase();
+    // Cuenta como admin tanto el que tiene ADMIN como rol principal, como
+    // el que se le sumó el rol "extra" de Admin desde Configuración de Año
+    // (ver User.additionalAdmin en el backend / AuthController#/me).
+    return roleName === 'ADMIN' || !!user.additionalAdmin;
   }
 
   // ========== PRIVACY SETTINGS ==========

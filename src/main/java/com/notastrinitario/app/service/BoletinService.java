@@ -1170,13 +1170,18 @@ public class BoletinService {
      * por el nivel académico (primaria / bachillerato / media):
      *
      * <ul>
-     * <li>Grados 1-5 → materias con level = "primaria" (rango 1-5)</li>
-     * <li>Grados 6-9 → materias con level = "bachillerato" (rango 6-9)</li>
-     * <li>Grados 10-11 → materias con level = "media" MÁS todas las de
-     * "bachillerato" (un estudiante de 10º/11º ve tanto las propias
-     * de Media como las de Bachillerato), sin duplicar las que
-     * coincidan de nombre entre ambos niveles.</li>
+     * <li>Grados 1-5 → SOLO materias con level = "primaria" (rango 1-5)</li>
+     * <li>Grados 6-9 → SOLO materias con level = "bachillerato" (rango 6-9)</li>
+     * <li>Grados 10-11 → SOLO materias con level = "media" (rango 10-11).
+     * No se mezclan con las materias de "bachillerato", aunque compartan
+     * nombre: son registros distintos del catálogo (código propio,
+     * profesor propio, notas propias).</li>
      * </ul>
+     *
+     * Este listado alimenta tanto el boletín individual
+     * ({@link #prepareBoletinData}) como el Consolidado del grado/salón
+     * (vía {@code ConsolidadoController}), así que el filtrado por nivel
+     * aplica a ambos por igual.
      *
      * Si el filtro por nivel no devuelve nada (caso de una instalación sin seed de
      * media), hace fallback a la búsqueda en {@code subject_grades}.
@@ -1186,39 +1191,21 @@ public class BoletinService {
         String level = resolveLevelForGrade(gradeNum);
 
         if (level != null && gradeNum > 0) {
-            List<Subject> subjects;
-            if ("media".equals(level)) {
-                // IMPORTANTE: los grados 10° y 11° (nivel "media") deben ver
-                // TODAS las materias de bachillerato (Español, Matemáticas,
-                // Sociales, etc.) MÁS las materias exclusivas de media
-                // (Filosofía, Física, Química, etc.), es decir, se SUMAN.
-                //
-                // Antes esto se armaba con findByGradeRange(10 u 11), que
-                // exige gradeMin<=grado<=gradeMax. Como en la pantalla de
-                // Materias el nivel "Bachillerato" fija SIEMPRE gradeMin=6 y
-                // gradeMax=9 (ver subjects.ts -> onLevelChange), NINGUNA
-                // materia de bachillerato podía sobrevivir ese filtro para
-                // grado 10 u 11 (9 < 10), sin importar la unión de niveles
-                // que había después: nunca llegaban a compararse. Por eso las
-                // materias de bachillerato jamás se sumaban en 10°/11°.
-                //
-                // La solución es traer las materias de "bachillerato" por
-                // NIVEL (sin exigirles que su gradeMax llegue a 10/11) y
-                // sumarlas a las de "media" que sí correspondan a este grado
-                // exacto por su propio rango.
-                List<Subject> deBachillerato = subjectRepository.findByLevel("bachillerato");
-                List<Subject> deMedia = subjectRepository.findByGradeRange(gradeNum).stream()
-                        .filter(s -> "media".equalsIgnoreCase(s.getLevel()))
-                        .toList();
-                subjects = new ArrayList<>(deBachillerato.size() + deMedia.size());
-                subjects.addAll(deBachillerato);
-                subjects.addAll(deMedia);
-            } else {
-                String levelFinal = level;
-                subjects = subjectRepository.findByGradeRange(gradeNum).stream()
-                        .filter(subject -> levelFinal.equalsIgnoreCase(subject.getLevel()))
-                        .collect(Collectors.toCollection(ArrayList::new));
-            }
+            // IMPORTANTE: cada nivel académico (primaria / bachillerato / media)
+            // debe mostrar ÚNICAMENTE sus propias materias. En particular, los
+            // grados 10° y 11° (nivel "media") NO deben mezclarse con las
+            // materias de "bachillerato": aunque compartan nombre (Matemáticas,
+            // Lengua Castellana, etc.), son materias distintas en el catálogo
+            // (con su propio código, ej. "MAT-M") y pueden tener profesor y
+            // notas independientes. Antes este método SUMABA todas las materias
+            // de "bachillerato" a las de "media" para 10°/11°, lo que hacía que
+            // el boletín (y su consolidado, que reutiliza este mismo listado)
+            // mostrara materias duplicadas/ajenas al nivel. Ahora se filtra
+            // siempre por el nivel exacto del grado, sin excepciones.
+            String levelFinal = level;
+            List<Subject> subjects = subjectRepository.findByGradeRange(gradeNum).stream()
+                    .filter(subject -> levelFinal.equalsIgnoreCase(subject.getLevel()))
+                    .collect(Collectors.toCollection(ArrayList::new));
 
             if (!subjects.isEmpty()) {
                 // Deduplicado por nombre (sin distinguir mayúsculas/minúsculas

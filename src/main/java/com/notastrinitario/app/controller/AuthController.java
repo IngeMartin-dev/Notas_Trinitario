@@ -227,7 +227,14 @@ public class AuthController {
                 "username", user.getUsername() != null ? user.getUsername() : "",
                 "profilePicture", user.getProfilePicture() != null ? user.getProfilePicture() : "",
                 "role", user.getRole() != null ? user.getRole() : Map.of("name", "USER"),
-                "twoFactorEnabled", Boolean.TRUE.equals(user.getTwoFactorEnabled())
+                "twoFactorEnabled", Boolean.TRUE.equals(user.getTwoFactorEnabled()),
+                // Rol de Administrador "extra" sumado desde Configuración de
+                // Año (ver User.additionalAdmin): SIN este campo, el
+                // frontend (app.ts -> isAdmin()) nunca se entera de que este
+                // usuario tiene privilegios de Admin además de su rol
+                // principal, y no le muestra ni el marcador ni los
+                // apartados de Admin aunque el backend sí se los otorgue.
+                "additionalAdmin", user.getAdditionalAdmin()
             ));
         }
         return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));

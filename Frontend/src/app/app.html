@@ -334,3 +334,10 @@
 <!-- Diálogo global (alert/confirm) con pantalla propia de la app, en vez
      de los cuadros nativos del navegador ("localhost:4200 dice..."). -->
 <app-dialog></app-dialog>
+
+<!-- Bloqueo obligatorio de consentimiento: se monta siempre, pero solo se
+     renderiza a sí mismo (ver consent-gate.html) cuando hay un usuario
+     logueado que todavía no aceptó Términos y/o Privacidad. No se coloca
+     dentro de los bloques @if de arriba a propósito, para que también
+     cubra la ruta de login apenas el usuario complete su sesión. -->
+<app-consent-gate></app-consent-gate>

@@ -1183,5 +1183,5 @@
   .calc-cell { background: var(--surface-2); color: var(--text-1); }
   .recovery-cell { background: var(--surface-2); }
   .no-students-content { background: var(--surface); }
-  .grade-input::placeholder { color: var(--text-4); }
+  .grade-input::placeholder { color: var(--text-3); }
 }

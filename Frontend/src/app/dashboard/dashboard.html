@@ -79,7 +79,7 @@
           <div class="countdown-header">
             <h3>{{ countdownName }}</h3>
             @if (isAdmin()) {
-              <button class="countdown-config-btn" (click)="openCountdownConfig()">
+              <button class="countdown-config-btn" aria-label="Configurar cuenta regresiva" (click)="openCountdownConfig()">
                 <span class="material-icons">edit</span>
               </button>
             }
@@ -512,28 +512,28 @@
           <div class="reports-section">
             <h4>📊 Reportes Disponibles</h4>
             <div class="reports-grid">
-              <div class="report-card" (click)="generateReport()">
+              <div class="report-card a11y-clickable" role="button" tabindex="0" aria-label="Generar boletines de calificaciones" (click)="generateReport()" (keydown.enter)="generateReport()" (keydown.space)="generateReport(); $event.preventDefault()">
                 <div class="report-icon">📋</div>
                 <div class="report-info">
                   <h5>Boletines de Calificaciones</h5>
                   <p>Generar boletines individuales por estudiante</p>
                 </div>
               </div>
-              <div class="report-card" (click)="generateReport()">
+              <div class="report-card a11y-clickable" role="button" tabindex="0" aria-label="Generar listas de estudiantes" (click)="generateReport()" (keydown.enter)="generateReport()" (keydown.space)="generateReport(); $event.preventDefault()">
                 <div class="report-icon">👥</div>
                 <div class="report-info">
                   <h5>Listas de Estudiantes</h5>
                   <p>Listar estudiantes por grado y salón</p>
                 </div>
               </div>
-              <div class="report-card" (click)="generateReport()">
+              <div class="report-card a11y-clickable" role="button" tabindex="0" aria-label="Generar estadísticas generales" (click)="generateReport()" (keydown.enter)="generateReport()" (keydown.space)="generateReport(); $event.preventDefault()">
                 <div class="report-icon">📈</div>
                 <div class="report-info">
                   <h5>Estadísticas Generales</h5>
                   <p>Resumen general del sistema</p>
                 </div>
               </div>
-              <div class="report-card" (click)="generateReport()">
+              <div class="report-card a11y-clickable" role="button" tabindex="0" aria-label="Generar reporte de rendimiento académico" (click)="generateReport()" (keydown.enter)="generateReport()" (keydown.space)="generateReport(); $event.preventDefault()">
                 <div class="report-icon">🏆</div>
                 <div class="report-info">
                   <h5>Rendimiento Académico</h5>

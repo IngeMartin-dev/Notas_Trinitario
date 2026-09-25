@@ -279,7 +279,7 @@
 
 .info-row .label .material-icons {
   font-size: 18px;
-  color: var(--text-4);
+  color: var(--text-3);
 }
 
 .info-row .value {
@@ -331,7 +331,7 @@
 
 .btn-toggle:disabled {
   background: var(--border);
-  color: var(--text-4);
+  color: var(--text-3);
   cursor: not-allowed;
   box-shadow: none;
 }
@@ -497,7 +497,7 @@
 }
 
 .form-input::placeholder {
-  color: var(--text-4);
+  color: var(--text-3);
 }
 
 /* Modal Footer */
@@ -548,7 +548,7 @@
 .btn-save:disabled {
   background: var(--border);
   border-color: var(--border);
-  color: var(--text-4);
+  color: var(--text-3);
   cursor: not-allowed;
 }
 

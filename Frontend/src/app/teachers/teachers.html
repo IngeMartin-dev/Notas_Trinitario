@@ -24,7 +24,7 @@
         <h3>Profesores</h3>
         <div class="teachers-list">
           @for (teacher of getFilteredTeachers(); track teacher.id) {
-            <div class="teacher-item" [class.teacher-selected]="selectedTeacherForAssignment?.id === teacher.id" (click)="selectTeacherForAssignment(teacher)">
+            <div class="teacher-item a11y-clickable" [class.teacher-selected]="selectedTeacherForAssignment?.id === teacher.id" role="button" tabindex="0" [attr.aria-label]="'Seleccionar docente ' + teacher.name" (click)="selectTeacherForAssignment(teacher)" (keydown.enter)="selectTeacherForAssignment(teacher)" (keydown.space)="selectTeacherForAssignment(teacher); $event.preventDefault()">
               <div class="teacher-item-actions">
                 <button type="button" class="icon-action-button edit-icon-button" (click)="openEditTeacher(teacher); $event.stopPropagation()" title="Editar profesor">✎</button>
                 <button type="button" class="icon-action-button delete-icon-button" (click)="deleteTeacher(teacher); $event.stopPropagation()" title="Eliminar profesor">×</button>
@@ -194,7 +194,7 @@
                 <div class="input-group">
                   <span class="material-icons input-icon">lock</span>
                   <input [type]="showPassword ? 'text' : 'password'" id="teacherPassword" name="password" [(ngModel)]="formPassword" required minlength="6" placeholder="Ingrese su contraseña" autocomplete="new-password" class="form-input" />
-                  <button type="button" class="password-toggle" (click)="showPassword = !showPassword" [attr.title]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                  <button type="button" class="password-toggle" (click)="showPassword = !showPassword" [attr.title]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" [attr.aria-label]="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
                     <span class="material-icons">{{ showPassword ? 'visibility_off' : 'visibility' }}</span>
                   </button>
                 </div>
@@ -204,7 +204,7 @@
                 <div class="input-group">
                   <span class="material-icons input-icon">lock</span>
                   <input [type]="showConfirmPassword ? 'text' : 'password'" id="teacherConfirmPassword" name="confirmPassword" [(ngModel)]="formConfirmPassword" required placeholder="Confirma tu contraseña" autocomplete="new-password" class="form-input" />
-                  <button type="button" class="password-toggle" (click)="showConfirmPassword = !showConfirmPassword" [attr.title]="showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                  <button type="button" class="password-toggle" (click)="showConfirmPassword = !showConfirmPassword" [attr.title]="showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" [attr.aria-label]="showConfirmPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'">
                     <span class="material-icons">{{ showConfirmPassword ? 'visibility_off' : 'visibility' }}</span>
                   </button>
                 </div>

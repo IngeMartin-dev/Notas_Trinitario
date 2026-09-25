@@ -16,11 +16,12 @@ import { GenerationNotifications } from './generation-notifications';
 import { ThemeService } from './services/theme.service';
 import { Dialog } from './dialog/dialog';
 import { SchoolYearService } from './services/school-year.service';
-
+import { ConsentGate } from './legal/consent-gate/consent-gate';
 import { API_BASE_URL } from './config/api-base';
+
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterModule, MessagesDropdownComponent, NotificationDetailsComponent, GenerationNotifications, Dialog],
+  imports: [RouterOutlet, RouterModule, MessagesDropdownComponent, NotificationDetailsComponent, GenerationNotifications, Dialog, ConsentGate],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })

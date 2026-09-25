@@ -13,7 +13,7 @@
       <h3>Profesores</h3>
       <div class="teachers-list">
         @for (teacher of getFilteredTeachers(); track teacher.id) {
-          <div class="teacher-item" [class.teacher-selected]="selectedTeacher?.id === teacher.id" (click)="selectTeacher(teacher)">
+          <div class="teacher-item a11y-clickable" [class.teacher-selected]="selectedTeacher?.id === teacher.id" role="button" tabindex="0" [attr.aria-label]="'Seleccionar docente ' + teacher.name" (click)="selectTeacher(teacher)" (keydown.enter)="selectTeacher(teacher)" (keydown.space)="selectTeacher(teacher); $event.preventDefault()">
             <div class="teacher-info">
               <div class="teacher-avatar">{{ teacher.name.charAt(0) }}{{ teacher.surname.charAt(0) }}</div>
               <div class="teacher-details">

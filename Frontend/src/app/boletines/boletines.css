@@ -787,7 +787,7 @@
 
 .status-done { color: var(--success); font-weight: 700; }
 .status-active { color: var(--warning); font-weight: 700; }
-.status-pending { color: var(--text-4); }
+.status-pending { color: var(--text-3); }
 
 /* ── Resultados ────────────────────────────────────────────────── */
 .results-summary {
@@ -1065,7 +1065,7 @@
 
 .btn-confirm:disabled {
   background: var(--text-4);
-  border-color: var(--text-4);
+  border-color: var(--text-3);
   cursor: not-allowed;
 }
 

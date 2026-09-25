@@ -81,7 +81,7 @@
 
     @if (selectedChat) {
       <div class="conversation-header">
-        <button class="icon-btn back-btn" (click)="closeChat()">
+        <button class="icon-btn back-btn" aria-label="Volver" (click)="closeChat()">
           <span class="material-icons">arrow_back</span>
         </button>
         <div class="chat-avatar">
@@ -165,7 +165,7 @@
           } @else {
             <div class="gif-search-bar">
               <input type="text" placeholder="Buscar GIF..." [(ngModel)]="gifSearchTerm" (keyup.enter)="searchGifs()" />
-              <button class="icon-btn" (click)="searchGifs()"><span class="material-icons">search</span></button>
+              <button class="icon-btn" aria-label="Buscar GIF" (click)="searchGifs()"><span class="material-icons">search</span></button>
             </div>
             @if (gifLoading) {
               <div class="loading-spinner small"></div>
@@ -181,13 +181,13 @@
 
       <div class="message-input-area">
         <input #fileInput type="file" hidden (change)="onFileSelected($event)" />
-        <button class="icon-btn" title="Adjuntar archivo o imagen" (click)="openFilePicker()" [disabled]="uploadingAttachment">
+        <button class="icon-btn" title="Adjuntar archivo o imagen" aria-label="Adjuntar archivo o imagen" (click)="openFilePicker()" [disabled]="uploadingAttachment">
           <span class="material-icons">attach_file</span>
         </button>
-        <button class="icon-btn" title="Sticker" (click)="toggleStickerPicker()">
+        <button class="icon-btn" title="Sticker" aria-label="Elegir sticker" (click)="toggleStickerPicker()">
           <span class="material-icons">mood</span>
         </button>
-        <button class="icon-btn" title="GIF" (click)="toggleGifPicker()">
+        <button class="icon-btn" title="GIF" aria-label="Elegir GIF" (click)="toggleGifPicker()">
           <span class="material-icons">gif</span>
         </button>
         <input

@@ -362,7 +362,7 @@
             <button class="btn-upload">Seleccionar archivos</button>
           </div>
           <div class="signatures-gallery">
-            <div class="sig-card" [class.selected]="!selectedDirectorSignature" (click)="selectedDirectorSignature = undefined">
+            <div class="sig-card a11y-clickable" [class.selected]="!selectedDirectorSignature" role="button" tabindex="0" aria-label="Sin firma de director" (click)="selectedDirectorSignature = undefined" (keydown.enter)="selectedDirectorSignature = undefined" (keydown.space)="selectedDirectorSignature = undefined; $event.preventDefault()">
               <div class="sig-img no-sig">
                 <span class="no-sig-icon">📝</span>
                 <span class="no-sig-text">Sin firma personalizada</span>
@@ -370,7 +370,7 @@
               <div class="sig-name">Por defecto</div>
             </div>
             @for (sig of signatures; track sig.path) {
-              <div class="sig-card" [class.selected]="selectedDirectorSignature === sig.path" (click)="selectedDirectorSignature = sig.path">
+              <div class="sig-card a11y-clickable" [class.selected]="selectedDirectorSignature === sig.path" role="button" tabindex="0" [attr.aria-label]="'Firma ' + sig.name" (click)="selectedDirectorSignature = sig.path" (keydown.enter)="selectedDirectorSignature = sig.path" (keydown.space)="selectedDirectorSignature = sig.path; $event.preventDefault()">
                 <div class="sig-img">
                   <img [src]="apiBaseUrl + sig.path" [alt]="sig.name" (error)="onImageError($event)">
    <!-- VISTA DE BORRADORES -->

@@ -1,6 +1,6 @@
 <div class="periods-container">
   <div class="header">
-    <button class="back-btn" (click)="goBack()">
+    <button class="back-btn" aria-label="Volver" (click)="goBack()">
       <span class="material-icons">arrow_back</span>
     </button>
     <h1>Gestión de Períodos</h1>
@@ -98,7 +98,7 @@
       <div class="modal-content" (click)="$event.stopPropagation()">
         <div class="modal-header">
           <h2>Programar Período {{ editingPeriod()?.periodNumber }}</h2>
-          <button class="close-btn" (click)="closeScheduleModal()">
+          <button class="close-btn" aria-label="Cerrar" (click)="closeScheduleModal()">
             <span class="material-icons">close</span>
           </button>
         </div>

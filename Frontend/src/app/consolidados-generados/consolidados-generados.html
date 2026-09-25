@@ -52,7 +52,7 @@
             </h3>
             <div class="consolidados-grid">
               @for (c of grupo.items; track trackByFileName($index, c)) {
-                <div class="consolidado-card" (click)="descargar(c)">
+                <div class="consolidado-card a11y-clickable" role="button" tabindex="0" aria-label="Descargar consolidado" (click)="descargar(c)" (keydown.enter)="descargar(c)" (keydown.space)="descargar(c); $event.preventDefault()">
                   <div class="consolidado-icon">
                     <span class="material-icons">picture_as_pdf</span>
                   </div>

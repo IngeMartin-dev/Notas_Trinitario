@@ -71,13 +71,13 @@
                     {{ student.active !== false ? 'Activo' : 'Inactivo' }}
                   </td>
                   <td class="actions-cell">
-                    <span class="action-link edit-text" (click)="openEditStudentModal(student)">Editar</span>
-                    <span class="action-link" [class.active-text]="student.active === false" [class.inactive-text]="student.active !== false" (click)="toggleStudentStatus(student)">
+                    <button type="button" class="action-link edit-text" (click)="openEditStudentModal(student)">Editar</button>
+                    <button type="button" class="action-link" [class.active-text]="student.active === false" [class.inactive-text]="student.active !== false" (click)="toggleStudentStatus(student)">
                       {{ student.active === false ? 'Activar' : 'Inactivar' }}
-                    </span>
-                    <span class="action-link delete-text" (click)="deleteStudent(student)">
+                    </button>
+                    <button type="button" class="action-link delete-text" (click)="deleteStudent(student)">
                       Eliminar
-                    </span>
+                    </button>
                   </td>
                 </tr>
                 }

@@ -219,23 +219,32 @@ public class AuthController {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication != null && authentication.getPrincipal() instanceof User) {
             User user = (User) authentication.getPrincipal();
-            return ResponseEntity.ok(Map.of(
-                "id", user.getId(),
-                "name", user.getName() != null ? user.getName() : "",
-                "surname", user.getSurname() != null ? user.getSurname() : "",
-                "email", user.getEmail() != null ? user.getEmail() : "",
-                "username", user.getUsername() != null ? user.getUsername() : "",
-                "profilePicture", user.getProfilePicture() != null ? user.getProfilePicture() : "",
-                "role", user.getRole() != null ? user.getRole() : Map.of("name", "USER"),
-                "twoFactorEnabled", Boolean.TRUE.equals(user.getTwoFactorEnabled()),
-                // Rol de Administrador "extra" sumado desde Configuración de
-                // Año (ver User.additionalAdmin): SIN este campo, el
-                // frontend (app.ts -> isAdmin()) nunca se entera de que este
-                // usuario tiene privilegios de Admin además de su rol
-                // principal, y no le muestra ni el marcador ni los
-                // apartados de Admin aunque el backend sí se los otorgue.
-                "additionalAdmin", user.getAdditionalAdmin()
-            ));
+            // Map.of() soporta como máximo 10 pares clave-valor; con los
+            // campos de aceptación legal ya se superan, así que se usa un
+            // mapa mutable en su lugar.
+            Map<String, Object> me = new LinkedHashMap<>();
+            me.put("id", user.getId());
+            me.put("name", user.getName() != null ? user.getName() : "");
+            me.put("surname", user.getSurname() != null ? user.getSurname() : "");
+            me.put("email", user.getEmail() != null ? user.getEmail() : "");
+            me.put("username", user.getUsername() != null ? user.getUsername() : "");
+            me.put("profilePicture", user.getProfilePicture() != null ? user.getProfilePicture() : "");
+            me.put("role", user.getRole() != null ? user.getRole() : Map.of("name", "USER"));
+            me.put("twoFactorEnabled", Boolean.TRUE.equals(user.getTwoFactorEnabled()));
+            // Rol de Administrador "extra" sumado desde Configuración de
+            // Año (ver User.additionalAdmin): SIN este campo, el
+            // frontend (app.ts -> isAdmin()) nunca se entera de que este
+            // usuario tiene privilegios de Admin además de su rol
+            // principal, y no le muestra ni el marcador ni los
+            // apartados de Admin aunque el backend sí se los otorgue.
+            me.put("additionalAdmin", user.getAdditionalAdmin());
+            // Necesarios para que el frontend sepa si debe exigir la
+            // aceptación de Términos/Privacidad antes de dejar entrar al
+            // usuario (ver ConsentGuard). Sin esto, el frontend no tiene
+            // forma de saber si el usuario ya aceptó o no.
+            me.put("termsAcceptedAt", user.getTermsAcceptedAt());
+            me.put("privacyAcceptedAt", user.getPrivacyAcceptedAt());
+            return ResponseEntity.ok(me);
         }
         return ResponseEntity.status(401).body(Map.of("error", "Not authenticated"));
     }

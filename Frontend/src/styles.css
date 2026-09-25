@@ -32,9 +32,14 @@
   --text-4: #94a3b8;
 
   /* Estados */
-  --success: #16a34a;
+  /* --success/--warning se oscurecieron respecto al valor original
+     (#16a34a / #d97706) porque, como texto sobre fondo blanco o sobre su
+     propio -bg, no llegaban al contraste mínimo 4.5:1 de WCAG AA
+     (~3:1 y ~2.9:1 respectivamente). Los nuevos valores sí lo cumplen y
+     mantienen el mismo tono verde/naranja. */
+  --success: #0f7a37;
   --success-bg: #e7f6ec;
-  --warning: #d97706;
+  --warning: #a85703;
   --warning-bg: #fdf2e3;
   --danger: #dc2626;
   --danger-bg: #fdeaea;
@@ -568,4 +573,17 @@ textarea::placeholder {
   th { background-color: #f0f0f0 !important; font-weight: bold !important; }
   .page-break { page-break-before: always !important; }
   .no-page-break { page-break-inside: avoid !important; }
+}
+
+/*
+ * Utilidad global de accesibilidad para elementos clicables que no son
+ * <button> nativos (tarjetas seleccionables, elementos de lista, etc.).
+ * Se agregó junto con role="button"/tabindex="0"/(keydown.enter|space)
+ * en las plantillas para que también sean operables con teclado, no solo
+ * con mouse/touch. Sin este estilo, esos elementos serían enfocables por
+ * teclado pero invisibles al recibir el foco.
+ */
+.a11y-clickable:focus-visible {
+  outline: 2px solid #3f51b5;
+  outline-offset: 2px;
 }

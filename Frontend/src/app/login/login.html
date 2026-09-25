@@ -62,7 +62,8 @@
                   type="button"
                   class="password-toggle"
                   (click)="togglePasswordVisibility()"
-                  [attr.title]="passwordVisible() ? 'Ocultar contraseña' : 'Mostrar contraseña'">
+                  [attr.title]="passwordVisible() ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                  [attr.aria-label]="passwordVisible() ? 'Ocultar contraseña' : 'Mostrar contraseña'">
                   <span class="material-icons">
                     {{ passwordVisible() ? 'visibility_off' : 'visibility' }}
                   </span>

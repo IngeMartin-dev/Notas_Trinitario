@@ -80,7 +80,7 @@
   top: 50%;
   transform: translateY(-50%);
   font-size: 1.1rem;
-  color: var(--text-4);
+  color: var(--text-3);
   pointer-events: none;
 }
 
@@ -297,7 +297,7 @@
   border-color: var(--brand-100);
 }
 
-.empty-subjects { color: var(--text-4); font-size: 0.82rem; }
+.empty-subjects { color: var(--text-3); font-size: 0.82rem; }
 
 /* ---------- Assignment hint ---------- */
 .assignment-hint {
@@ -489,7 +489,7 @@
   gap: 0.4rem;
   padding: var(--sp-6);
   text-align: center;
-  color: var(--text-4);
+  color: var(--text-3);
   grid-column: 1 / -1;
 }
 
@@ -644,7 +644,7 @@
   font-family: inherit;
 }
 
-.form-input::placeholder { color: var(--text-4); }
+.form-input::placeholder { color: var(--text-3); }
 
 .form-input:focus {
   outline: none;
@@ -666,7 +666,7 @@
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: var(--text-4);
+  color: var(--text-3);
   font-size: 20px;
   z-index: 1;
   pointer-events: none;

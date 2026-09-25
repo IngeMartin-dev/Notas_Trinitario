@@ -100,7 +100,7 @@
   align-items: center;
   justify-content: center;
   min-height: 320px;
-  color: var(--text-4);
+  color: var(--text-3);
 }
 
 .placeholder-content { text-align: center; }
@@ -318,7 +318,7 @@
   border: 1px dashed var(--border-strong);
   border-radius: var(--r-md);
   background: var(--surface);
-  color: var(--text-4);
+  color: var(--text-3);
 }
 
 .empty-column p { margin: 0; }

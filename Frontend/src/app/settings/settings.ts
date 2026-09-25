@@ -7,10 +7,14 @@ import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { ThemeService } from '../services/theme.service';
 import { DialogService } from '../services/dialog.service';
+import { TermsContentComponent } from '../legal/terms-content/terms-content';
+import { PrivacyContentComponent } from '../legal/privacy-content/privacy-content';
+import { CookiesContentComponent } from '../legal/cookies-content/cookies-content';
+import { RefundContentComponent } from '../legal/refund-content/refund-content';
 
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule],
+  imports: [FormsModule, TermsContentComponent, PrivacyContentComponent, CookiesContentComponent, RefundContentComponent],
   templateUrl: './settings.html',
   styleUrl: './settings.css',
 })
@@ -573,7 +577,7 @@ export class Settings implements OnInit, OnDestroy {
   contactSupport() {
     const subject = encodeURIComponent('Contacto desde Notas Trinitario');
     const body = encodeURIComponent(`\n\n---\nUsuario: ${this.currentUser()?.name || 'No identificado'}\nEmail: ${this.currentUser()?.email || 'No registrado'}`);
-    window.open(`mailto:soporte@colegiotrinitario.edu.co?subject=${subject}&body=${body}`);
+    window.open(`mailto:secretaria.trinitario@gmail.com?subject=${subject}&body=${body}`);
   }
 
   async sendFeedback() {
@@ -636,6 +640,16 @@ export class Settings implements OnInit, OnDestroy {
       }
     });
   }
+
+  // --- Política de Cookies / Almacenamiento local (solo informativa, no requiere aceptación) ---
+  showCookiesModal = signal(false);
+  openCookiesPolicy() { this.showCookiesModal.set(true); }
+  closeCookiesModal() { this.showCookiesModal.set(false); }
+
+  // --- Política de Reembolsos (solo informativa, no requiere aceptación) ---
+  showRefundModal = signal(false);
+  openRefundPolicy() { this.showRefundModal.set(true); }
+  closeRefundModal() { this.showRefundModal.set(false); }
 
   loadCurrentUser() {
     if (this.authService.isAuthenticated()) {

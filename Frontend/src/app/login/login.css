@@ -400,10 +400,10 @@
   .form-header h2 { color: var(--text-1); }
   .form-header p { color: var(--text-2); }
   .form-group label { color: var(--text-2); }
-  .input-icon { color: var(--text-4); }
+  .input-icon { color: var(--text-3); }
   .form-input { background: var(--surface); }
   .form-input:focus { background: var(--surface); }
-  .form-input::placeholder { color: var(--text-4); }
+  .form-input::placeholder { color: var(--text-3); }
   /* Password Toggle Button */
 .password-toggle { color: var(--text-3); }
   .secondary-link-btn { color: var(--text-3); }

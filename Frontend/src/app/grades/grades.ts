@@ -2428,7 +2428,13 @@ loadTeacherSubjectsForGradeRange() {
     this.initNotificationSound();
 
     const student = this.selectedStudentForPlan;
-    const studentName = `${student.surname} ${student.name}`;
+    // Minimización de datos: al proveedor externo de IA (Mistral, ver
+    // AiController en el backend) solo se le envía el primer nombre del
+    // estudiante, no su apellido. El nombre completo se sigue guardando
+    // en el propio backend (ver el payload de /api/grades/study-plan más
+    // abajo), pero no hace falta mandarle el apellido a un tercero solo
+    // para generar un plan de estudio genérico personalizado por nombre.
+    const studentName = student.name;
 
     // Add image context to prompt if images are uploaded
     const imageContext = this.uploadedImages.length > 0
@@ -2480,7 +2486,7 @@ Estética: usa encabezados claros, viñetas, tablas simples y un estilo limpio y
          };
 
 try {
-           // Generate the study plan via the backend proxy (NVIDIA API).
+           // Generate the study plan via the backend proxy (Mistral API).
            // The API key stays server-side; the backend returns the SSE stream.
            const url = `${this.AI_PROXY_BASE}/study-plan-stream`;
            resetIdleTimer();

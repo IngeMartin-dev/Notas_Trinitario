@@ -142,7 +142,11 @@ public class FcmPushService {
     }
 
     /**
-     * Send a single push notification
+     * Send a single push notification.
+     *
+     * Note: setToken() is deprecated in firebase-admin 9.10.0 in favor of setFid().
+     * We still use it because the Android client sends registration tokens.
+     * TODo: migrate to Firebase Installation ID once the client is updated.
      */
     private void sendPushNotification(String token, String title, String body, String dataPayload) {
         try {

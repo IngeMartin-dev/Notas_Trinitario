@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { Observable, EMPTY } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { initializeApp, FirebaseApp } from 'firebase/app';
-import { getMessaging, getToken, onMessage, Messaging } from 'firebase/messaging';
+import { getMessaging, register, onRegistered, onMessage, Messaging } from 'firebase/messaging';
 import { FIREBASE_CONFIG, FIREBASE_VAPID_KEY, isFirebaseConfigured } from '../firebase-config';
 
 export interface PushNotificationPayload {
@@ -16,9 +16,11 @@ export interface PushNotificationPayload {
 /**
  * Notificaciones push reales vía Firebase Cloud Messaging.
  *
- * A diferencia de la versión anterior (que generaba un token falso tipo
- * `local_...` y nunca llegaba realmente al backend de Firebase), este
- * servicio registra el dispositivo con un token FCM auténtico, así que las
+ * Usa el registro por Firebase Installation ID (FID): register() +
+ * onRegistered(). Los métodos anteriores getToken()/deleteToken() están
+ * deprecados y Firebase pide NO mezclarlos con los de FID, así que aquí ya
+ * no se usa getToken(). El FID se manda al backend, que lo usa como destino
+ * del envío (Message.setFid). Este servicio registra el dispositivo, así que las
  * notificaciones sí llegan aunque la pestaña esté cerrada o el celular
  * bloqueado — necesario tanto para el chat como para los avisos de
  * apertura/cierre de período.
@@ -38,6 +40,11 @@ export class FirebasePushService {
   private app: FirebaseApp | null = null;
   private messaging: Messaging | null = null;
   private initialized = false;
+
+  // Usuario al que se le asociará el FID cuando onRegistered() lo entregue.
+  private currentUserId: number | null = null;
+  // Resuelve la promesa de requestPermissionAndGetToken() cuando llega el FID.
+  private resolveFid: ((fid: string) => void) | null = null;
 
   constructor() {
     this.initializeService();
@@ -61,6 +68,18 @@ export class FirebasePushService {
       this.app = initializeApp(FIREBASE_CONFIG);
       this.messaging = getMessaging(this.app);
       this.initialized = true;
+
+      // Se dispara al terminar cada register(), si el FID cambia o si el
+      // navegador renueva la suscripción push (pushsubscriptionchange).
+      onRegistered(this.messaging, (fid: string) => {
+        if (this.currentUserId !== null) {
+          void this.saveTokenToServer(this.currentUserId, fid, 'web-push');
+        }
+        if (this.resolveFid) {
+          this.resolveFid(fid);
+          this.resolveFid = null;
+        }
+      });
 
       // Notificación mientras la app está ABIERTA en primer plano.
       onMessage(this.messaging, (payload) => {
@@ -114,18 +133,25 @@ export class FirebasePushService {
       }
 
       const registration = await this.registerServiceWorker();
-      const token = await getToken(this.messaging, {
+      this.currentUserId = userId;
+
+      // El FID NO es el valor de retorno de register(): llega por onRegistered().
+      const fidPromise = new Promise<string | null>((resolve) => {
+        this.resolveFid = (fid) => resolve(fid);
+        setTimeout(() => resolve(null), 15000);
+      });
+
+      await register(this.messaging, {
         vapidKey: FIREBASE_VAPID_KEY,
         serviceWorkerRegistration: registration ?? undefined
       });
 
-      if (!token) {
-        console.warn('No se pudo obtener el token FCM');
+      const fid = await fidPromise;
+      if (!fid) {
+        console.warn('No se recibió el Firebase Installation ID (FID)');
         return null;
       }
-
-      await this.saveTokenToServer(userId, token, 'web-push');
-      return token;
+      return fid;
     } catch (error) {
       console.error('Error solicitando permiso/token de notificaciones:', error);
       return null;

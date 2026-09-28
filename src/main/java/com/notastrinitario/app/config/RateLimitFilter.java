@@ -48,7 +48,7 @@ public class RateLimitFilter implements Filter {
     // bastante más bajo, pensado para uso normal desde la UI, no para que
     // alguien dispare generaciones de PDF en bucle.
     // (Subido de 30 a 120: la UI de boletines hace muchas peticiones seguidas.)
-    private static final int HEAVY_LIMIT = 500;
+    private static final int HEAVY_LIMIT = 120;
 
     private static final Duration WINDOW = Duration.ofMinutes(1);
     // Cuánto tiempo sin actividad tiene que pasar para que se pueda limpiar
@@ -135,6 +135,11 @@ public class RateLimitFilter implements Filter {
      *  siempre la IP real de la conexión TCP, que no se puede falsificar. */
     private String getClientKey(HttpServletRequest request) {
         if (trustProxyHeaders) {
+            // Cloudflare pone la IP real del visitante en CF-Connecting-IP.
+            String cf = request.getHeader("CF-Connecting-IP");
+            if (cf != null && !cf.isBlank()) {
+                return cf.trim();
+            }
             String xForwardedFor = request.getHeader("X-Forwarded-For");
             if (xForwardedFor != null && !xForwardedFor.isBlank()) {
                 return xForwardedFor.split(",")[0].trim();

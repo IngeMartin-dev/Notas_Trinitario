@@ -517,7 +517,7 @@ export class Teachers implements OnInit {
 
   toggleStatus(teacher: Teacher) {
     const updated = { ...teacher, enable: !teacher.enable };
-    this.http.put(`http://localhost:8080/api/users/${teacher.id}`, updated).subscribe({
+    this.http.put(`http://localhost:8080/api/users/${teacher.id}/enable`, { enable: updated.enable }).subscribe({
       next: () => {
         teacher.enable = updated.enable;
         this.showSuccess(updated.enable ? 'Profesor activado' : 'Profesor desactivado');

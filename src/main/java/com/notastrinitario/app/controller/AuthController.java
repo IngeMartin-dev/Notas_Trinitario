@@ -46,10 +46,13 @@ public class AuthController {
     private final BruteForceProtection bruteForceProtection;
     private final RefreshTokenService refreshTokenService;
     private final TwoFactorService twoFactorService;
+    private final com.notastrinitario.app.repository.RoleRepository roleRepository;
 
     public AuthController(UserRepository userRepository, JwtUtil jwtUtil, BruteForceProtection bruteForceProtection,
                           RefreshTokenService refreshTokenService,
-                          TwoFactorService twoFactorService) {
+                          TwoFactorService twoFactorService,
+                          com.notastrinitario.app.repository.RoleRepository roleRepository) {
+        this.roleRepository = roleRepository;
         this.userRepository = userRepository;
         this.jwtUtil = jwtUtil;
         this.bruteForceProtection = bruteForceProtection;
@@ -242,18 +245,34 @@ public class AuthController {
         return cleaned.length() > 100 ? cleaned.substring(0, 100) + "..." : cleaned;
     }
 
+    // Mass assignment: /register es público, por eso NO recibe la entidad User
+    // sino este DTO (ver dto/RegisterRequest).
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody User user, HttpServletRequest request) {
-        if (user.getUsername() == null || user.getEmail() == null || user.getPassword() == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "username, email and password required"));
-        }
-        if (userRepository.findByUsername(user.getUsername()).isPresent()) {
+    public ResponseEntity<?> register(@Valid @RequestBody com.notastrinitario.app.dto.RegisterRequest req, HttpServletRequest request) {
+        if (userRepository.findByUsername(req.username()).isPresent()) {
             return ResponseEntity.badRequest().body(Map.of("error", "username already in use"));
         }
-        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+        if (userRepository.findByEmail(req.email()).isPresent()) {
             return ResponseEntity.badRequest().body(Map.of("error", "email already in use"));
         }
-        user.setPassword(com.notastrinitario.app.security.PasswordSecurity.hash(user.getPassword()));
+        // El rol público de auto-registro es SIEMPRE PARENT; nunca lo elige el cliente.
+        com.notastrinitario.app.entity.Role parentRole = roleRepository.findByName("PARENT");
+        if (parentRole == null) {
+            log.error("Registro imposible: el rol PARENT no existe en la base de datos");
+            return ResponseEntity.status(500).body(Map.of("error", "Ocurrió un error interno"));
+        }
+
+        User user = new User();
+        user.setUsername(req.username().trim());
+        user.setEmail(req.email().trim());
+        user.setName(req.name());
+        user.setSurname(req.surname());
+        user.setPassword(com.notastrinitario.app.security.PasswordSecurity.hash(req.password()));
+        user.setRole(parentRole);
+        user.setEnable(true);
+        user.setAdditionalAdmin(false);
+        user.setTwoFactorEnabled(false);
+
         User saved = userRepository.save(user);
         String token = jwtUtil.generateToken(saved.getId().toString());
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(

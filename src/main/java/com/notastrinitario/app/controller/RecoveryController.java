@@ -22,7 +22,6 @@ import java.util.regex.Pattern;
 
 @RestController
 @RequestMapping("/api/grades")
-@CrossOrigin(origins = { "http://localhost:4200" })
 public class RecoveryController {
 
     private final RecoveryDataRepository recoveryDataRepository;

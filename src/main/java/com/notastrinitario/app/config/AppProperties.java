@@ -88,6 +88,14 @@ public class AppProperties {
         // reenviar la petición. Variable de entorno: APP_SECURITY_TRUST_PROXY_HEADERS=true
         private boolean trustProxyHeaders = false;
 
+        // Orígenes EXTRA autorizados por CORS (además de localhost), separados
+        // por coma. Variable de entorno: APP_SECURITY_ALLOWED_ORIGINS
+        // Ej: https://notas.tucolegio.edu.co  (opcional, cuando tengas dominio)
+        private java.util.List<String> allowedOrigins = new java.util.ArrayList<>();
+
+        public java.util.List<String> getAllowedOrigins() { return allowedOrigins; }
+        public void setAllowedOrigins(java.util.List<String> allowedOrigins) { this.allowedOrigins = allowedOrigins; }
+
         public boolean isTrustProxyHeaders() { return trustProxyHeaders; }
         public void setTrustProxyHeaders(boolean trustProxyHeaders) { this.trustProxyHeaders = trustProxyHeaders; }
     }

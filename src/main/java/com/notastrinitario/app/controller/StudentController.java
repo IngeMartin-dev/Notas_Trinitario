@@ -7,7 +7,6 @@ import com.notastrinitario.app.service.StudentService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -123,88 +122,5 @@ public class StudentController {
     @GetMapping("/grade/{grade}/class/{classGroup}")
     public List<Student> findByGradeAndClassGroup(@PathVariable String grade, @PathVariable String classGroup) {
         return studentService.findByGradeAndClassGroup(grade, classGroup);
-    }
-
-    // ─────────────────────────────────────────────────────────────────
-    // Endpoints de debug/prueba. Quedaron de desarrollo: exponen TODOS los
-    // estudiantes de TODOS los salones sin filtro, uno de ellos incluso
-    // reactiva estudiantes en silencio dentro de un GET (efecto secundario
-    // inesperado). Los dejo restringidos solo a ADMIN mientras se decide
-    // si se eliminan; lo recomendable es borrarlos antes de producción.
-    // ─────────────────────────────────────────────────────────────────
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/debug/all")
-    public List<Student> getAllStudentsDebug() {
-        List<Student> allStudents = studentService.findAll();
-        System.out.println("=== DEBUG: Total students in database: " + allStudents.size());
-        for (Student student : allStudents) {
-            if (Boolean.FALSE.equals(student.isActive())) {
-                student.setActive(true);
-                studentService.save(student);
-            }
-            System.out.println("Student: " + student.getName() + " " + student.getSurname() + 
-                             " | Grade: '" + student.getGrade() + 
-                             "' | Classroom: '" + student.getClassGroup() + "'");
-        }
-        return allStudents;
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/debug/grades")
-    public List<String> getAllGradesDebug() {
-        return studentService.findAll().stream()
-                .map(Student::getGrade)
-                .distinct()
-                .sorted()
-                .collect(java.util.stream.Collectors.toList());
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/debug/classrooms")
-    public List<String> getAllClassroomsDebug() {
-        return studentService.findAll().stream()
-                .map(Student::getClassGroup)
-                .distinct()
-                .sorted()
-                .collect(java.util.stream.Collectors.toList());
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/test-simple")
-    public List<Student> getAllStudentsSimple() {
-        List<Student> students = studentService.findAll();
-        System.out.println("=== SIMPLE TEST: Found " + students.size() + " students ===");
-        for (Student s : students) {
-            System.out.println("Student: " + s.getName() + " " + s.getSurname() + 
-                             " | Grade: '" + s.getGrade() + "' | Classroom: '" + s.getClassGroup() + "'");
-        }
-        return students;
-    }
-
-    @PreAuthorize("hasRole('ADMIN')")
-    @GetMapping("/test-debug")
-    public String testDebug(@RequestParam String grade, @RequestParam String classroom) {
-        List<Student> allStudents = studentService.findAll();
-        List<Student> filteredStudents = studentService.findByGradeAndClassGroup(grade, classroom);
-        
-        StringBuilder sb = new StringBuilder();
-        sb.append("=== DEBUG RESULTS ===<br>");
-        sb.append("Total students in DB: ").append(allStudents.size()).append("<br>");
-        sb.append("Looking for: Grade='").append(grade).append("', Classroom='").append(classroom).append("'<br>");
-        sb.append("Found students: ").append(filteredStudents.size()).append("<br>");
-        sb.append("<br>All students in DB:<br>");
-        
-        for (Student s : allStudents) {
-            sb.append("- ").append(s.getName()).append(" ").append(s.getSurname())
-              .append(" | Grade: '").append(s.getGrade()).append("' | Classroom: '").append(s.getClassGroup()).append("'<br>");
-        }
-        
-        sb.append("<br>Filtered results:<br>");
-        for (Student s : filteredStudents) {
-            sb.append("- ").append(s.getName()).append(" ").append(s.getSurname()).append("<br>");
-        }
-        
-        return sb.toString();
     }
 }

@@ -17,8 +17,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import jakarta.persistence.EntityManager;
 import org.springframework.web.bind.annotation.*;
-import java.io.StringWriter;
-import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +24,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/teachers")
 public class TeacherController {
+
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TeacherController.class);
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -158,11 +158,9 @@ public class TeacherController {
                     return null;
                 });
             } catch (Exception ex) {
-                StringWriter sw = new StringWriter();
-                ex.printStackTrace(new PrintWriter(sw));
+                log.error("Error eliminando profesor (paso clearTeacherFromSubjects)", ex);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(Map.of("step", "clearTeacherFromSubjects", "error", ex.getMessage(), "trace",
-                                sw.toString()));
+                        .body(Map.of("step", "clearTeacherFromSubjects", "error", "Ocurrió un error interno"));
             }
 
             // Step 2: clear report cards teacher reference
@@ -173,11 +171,9 @@ public class TeacherController {
                     return null;
                 });
             } catch (Exception ex) {
-                StringWriter sw = new StringWriter();
-                ex.printStackTrace(new PrintWriter(sw));
+                log.error("Error eliminando profesor (paso clearTeacherFromReportCards)", ex);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(Map.of("step", "clearTeacherFromReportCards", "error", ex.getMessage(), "trace",
-                                sw.toString()));
+                        .body(Map.of("step", "clearTeacherFromReportCards", "error", "Ocurrió un error interno"));
             }
 
             // Step 3: clear report cards createdBy reference
@@ -188,11 +184,9 @@ public class TeacherController {
                     return null;
                 });
             } catch (Exception ex) {
-                StringWriter sw = new StringWriter();
-                ex.printStackTrace(new PrintWriter(sw));
+                log.error("Error eliminando profesor (paso clearCreatedByFromReportCards)", ex);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(Map.of("step", "clearCreatedByFromReportCards", "error", ex.getMessage(), "trace",
-                                sw.toString()));
+                        .body(Map.of("step", "clearCreatedByFromReportCards", "error", "Ocurrió un error interno"));
             }
 
             // Step 4: delete tokens
@@ -203,10 +197,9 @@ public class TeacherController {
                     return null;
                 });
             } catch (Exception ex) {
-                StringWriter sw = new StringWriter();
-                ex.printStackTrace(new PrintWriter(sw));
+                log.error("Error eliminando profesor (paso deleteFcmTokens)", ex);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(Map.of("step", "deleteFcmTokens", "error", ex.getMessage(), "trace", sw.toString()));
+                        .body(Map.of("step", "deleteFcmTokens", "error", "Ocurrió un error interno"));
             }
 
             // Step 5: delete digital signatures
@@ -217,11 +210,9 @@ public class TeacherController {
                     return null;
                 });
             } catch (Exception ex) {
-                StringWriter sw = new StringWriter();
-                ex.printStackTrace(new PrintWriter(sw));
+                log.error("Error eliminando profesor (paso deleteDigitalSignatures)", ex);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(Map.of("step", "deleteDigitalSignatures", "error", ex.getMessage(), "trace",
-                                sw.toString()));
+                        .body(Map.of("step", "deleteDigitalSignatures", "error", "Ocurrió un error interno"));
             }
 
             // Step 6: delete notifications
@@ -232,10 +223,9 @@ public class TeacherController {
                     return null;
                 });
             } catch (Exception ex) {
-                StringWriter sw = new StringWriter();
-                ex.printStackTrace(new PrintWriter(sw));
+                log.error("Error eliminando profesor (paso deleteNotifications)", ex);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(Map.of("step", "deleteNotifications", "error", ex.getMessage(), "trace", sw.toString()));
+                        .body(Map.of("step", "deleteNotifications", "error", "Ocurrió un error interno"));
             }
 
             // Step 7: delete report card history
@@ -246,11 +236,9 @@ public class TeacherController {
                     return null;
                 });
             } catch (Exception ex) {
-                StringWriter sw = new StringWriter();
-                ex.printStackTrace(new PrintWriter(sw));
+                log.error("Error eliminando profesor (paso deleteReportCardHistory)", ex);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(Map.of("step", "deleteReportCardHistory", "error", ex.getMessage(), "trace",
-                                sw.toString()));
+                        .body(Map.of("step", "deleteReportCardHistory", "error", "Ocurrió un error interno"));
             }
 
             // Final: delete the user via native SQL to avoid JPA transient issues
@@ -262,22 +250,17 @@ public class TeacherController {
                     return null;
                 });
             } catch (Exception ex) {
-                StringWriter sw = new StringWriter();
-                ex.printStackTrace(new PrintWriter(sw));
+                log.error("Error eliminando profesor (paso deleteUser)", ex);
                 return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                        .body(Map.of("step", "deleteUser", "error", ex.getMessage(), "trace", sw.toString()));
+                        .body(Map.of("step", "deleteUser", "error", "Ocurrió un error interno"));
             }
 
             return ResponseEntity.ok(Map.of("message", "Profesor eliminado correctamente"));
         } catch (Exception e) {
-            StringWriter sw = new StringWriter();
-            e.printStackTrace(new PrintWriter(sw));
-            String stack = sw.toString();
-            System.err.println("Error deleting teacher: " + e.getClass().getName() + ": " + e.getMessage());
-            System.err.println(stack);
+            // El detalle completo queda SOLO en los logs del servidor.
+            log.error("Error eliminando profesor", e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(Map.of("error", e.getMessage() != null ? e.getMessage() : "Error al eliminar el profesor",
-                            "type", e.getClass().getName(), "trace", stack));
+                    .body(Map.of("error", "Ocurrió un error interno al eliminar el profesor"));
         }
     }
 

@@ -53,10 +53,11 @@ public class SecurityConfig {
         public SecurityFilterChain securityFilterChain(
                         HttpSecurity http,
                         JwtAuthenticationFilter jwtAuthenticationFilter,
-                        RateLimitFilter rateLimitFilter) throws Exception {
+                        RateLimitFilter rateLimitFilter,
+                        CorsConfigurationSource corsConfigurationSource) throws Exception {
                 http
                                 .csrf(csrf -> csrf.disable())
-                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource))
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                                 .authorizeHttpRequests(auth -> auth
@@ -66,7 +67,6 @@ public class SecurityConfig {
                                                                 "/js/**",
                                                                 "/images/**",
                                                                 "/webjars/**",
-                                                                "/h2-console/**",
                                                                 "/favicon.ico",
                                                                 "/uploads/**")
                                                 .permitAll()
@@ -134,34 +134,21 @@ public class SecurityConfig {
         }
 
         @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
+        public CorsConfigurationSource corsConfigurationSource(AppProperties appProperties) {
                 CorsConfiguration configuration = new CorsConfiguration();
-                // Use allowedOriginPatterns instead of allowedOrigins when allowCredentials is
-                // true
-                configuration.setAllowedOriginPatterns(Arrays.asList(
+                // Orígenes locales (sin devtunnels ni comodines).
+                java.util.List<String> origins = new java.util.ArrayList<>(Arrays.asList(
                                 "http://localhost:4200",
                                 "http://localhost:8080",
                                 "http://127.0.0.1:4200",
-                                "http://127.0.0.1:8080",
-                                // DevTunnel actual (frontend en 4200, backend en 8080). Cuando
-                                // el id del túnel cambie, hay que actualizar estas dos líneas.
-                                "https://rq4cngtm-4200.use.devtunnels.ms",
-                                "https://rq4cngtm-8080.use.devtunnels.ms",
-                                // Comodín de respaldo por si el id cambia y se te olvida
-                                // actualizar las dos líneas de arriba.
-                                "https://*.devtunnels.ms"));
+                                "http://127.0.0.1:8080"));
+                // Cuando tengas dominio: APP_SECURITY_ALLOWED_ORIGINS=https://tu-dominio.com
+                origins.addAll(appProperties.getSecurity().getAllowedOrigins());
+                configuration.setAllowedOrigins(origins);
                 configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
-                configuration.setAllowedHeaders(Arrays.asList(
-                                "*",
-                                "Authorization",
-                                "Content-Type",
-                                "X-Requested-With",
-                                "Accept"));
+                configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept"));
                 configuration.setAllowCredentials(false);
                 configuration.setExposedHeaders(Arrays.asList("Authorization"));
-
-                // Configurar el tiempo máximo de caché para las respuestas preflight (en
-                // segundos)
                 configuration.setMaxAge(3600L);
 
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

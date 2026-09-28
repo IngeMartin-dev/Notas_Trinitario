@@ -5,8 +5,8 @@
 // falta pegar las llaves de Firebase aquí también: basta con configurarlas
 // una sola vez en Frontend/src/app/firebase-config.ts.
 
-importScripts('https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js');
-importScripts('https://www.gstatic.com/firebasejs/10.13.0/firebase-messaging-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.19.0/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/12.19.0/firebase-messaging-compat.js');
 
 const params = new URLSearchParams(self.location.search);
 const firebaseConfig = {

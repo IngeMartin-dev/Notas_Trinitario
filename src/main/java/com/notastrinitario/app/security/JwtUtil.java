@@ -5,10 +5,25 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.stereotype.Component;
-import java.security.Key;
+import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.UUID;
 
+/**
+ * Actualizado a la API de jjwt 0.13.x (antes 0.11.5). La API vieja
+ * (setSubject/setIssuedAt/setExpiration, Jwts.parserBuilder(),
+ * signWith(Key) sobre java.security.Key genérico) sigue existiendo en
+ * 0.11.x pero está deprecada desde 0.12; con la 0.13 en el pom, compilar
+ * con esos métodos ya tira warnings de deprecación (y en una futura major
+ * podrían desaparecer). Cambios:
+ *   - subject()/issuedAt()/expiration() en vez de setSubject()/etc.
+ *   - Jwts.parser() (no parserBuilder()) + verifyWith(SecretKey) en vez de
+ *     parserBuilder().setSigningKey(Key).
+ *   - parseSignedClaims(token).getPayload() en vez de
+ *     parseClaimsJws(token).getBody().
+ *   - La clave se guarda como javax.crypto.SecretKey (lo que exige
+ *     verifyWith en 0.13), no como java.security.Key genérico.
+ */
 @Component
 public class JwtUtil {
 
@@ -18,7 +33,7 @@ public class JwtUtil {
     private static final String LEAKED_SECRET =
             "a1b8aeb3b0cc2a4edf36f8fdc905bf730443be2cc98d689f6fc9c1e1d3c28efedf5701d17bf2de7bbf44f1693f8570dd015dad1500e744ea02869354b9042eca";
 
-    private final Key key;
+    private final SecretKey key;
     private final long validity;
     private final long refreshValidity;
 
@@ -42,9 +57,9 @@ public class JwtUtil {
     public String generateToken(String subject) {
         Date now = new Date();
         return Jwts.builder()
-                .setSubject(subject)
-                .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + validity))
+                .subject(subject)
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + validity))
                 .signWith(key)
                 .compact();
     }
@@ -52,16 +67,16 @@ public class JwtUtil {
     public String generateRefreshToken(String subject) {
         Date now = new Date();
         return Jwts.builder()
-                .setSubject(subject)
-                .setId(UUID.randomUUID().toString())
-                .setIssuedAt(now)
-                .setExpiration(new Date(now.getTime() + refreshValidity))
+                .subject(subject)
+                .id(UUID.randomUUID().toString())
+                .issuedAt(now)
+                .expiration(new Date(now.getTime() + refreshValidity))
                 .signWith(key)
                 .compact();
     }
 
     public Claims validateToken(String token) {
-        return Jwts.parserBuilder().setSigningKey(key).build().parseClaimsJws(token).getBody();
+        return Jwts.parser().verifyWith(key).build().parseSignedClaims(token).getPayload();
     }
 
     public Long getUserIdFromToken(String token) {

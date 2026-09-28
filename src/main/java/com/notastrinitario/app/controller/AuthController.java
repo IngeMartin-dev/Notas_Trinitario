@@ -25,6 +25,22 @@ import java.util.Optional;
 @RequestMapping("/api/auth")
 public class AuthController {
 
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(AuthController.class);
+
+    // Hash BCrypt "de relleno" sin contraseña real detrás (no corresponde a
+    // ninguna cuenta). Se usa solo para que, cuando el username no existe,
+    // igual se haga un BCrypt.checkpw() contra ALGO y la petición tarde
+    // aproximadamente lo mismo que un login con username real y contraseña
+    // incorrecta. Sin esto, "usuario no existe" responde casi al instante y
+    // "usuario existe, contraseña mal" tarda lo que tarda BCrypt (~decenas
+    // de ms): esa diferencia de tiempo es medible y permite a un atacante
+    // enumerar qué usernames/emails existen en el sistema sin necesitar la
+    // contraseña de nadie.
+    private static final String DUMMY_BCRYPT_HASH =
+            org.springframework.security.crypto.bcrypt.BCrypt.hashpw(
+                    "no-corresponde-a-ninguna-cuenta-real",
+                    org.springframework.security.crypto.bcrypt.BCrypt.gensalt(12));
+
     private final UserRepository userRepository;
     private final JwtUtil jwtUtil;
     private final BruteForceProtection bruteForceProtection;
@@ -97,6 +113,15 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> body, HttpServletRequest request) {
         String username = body.get("username");
+        String password = body.get("password");
+
+        // Antes se llamaba a bruteForceProtection.isBlocked(username) y se
+        // usaba "username" como clave de un Map sin comprobar null antes:
+        // un login sin el campo "username" (fácil de mandar a mano contra
+        // el API) provocaba una excepción no controlada. Se valida acá.
+        if (username == null || username.isBlank() || password == null || password.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "username y password son requeridos"));
+        }
 
         if (bruteForceProtection.isBlocked(username)) {
             long remaining = bruteForceProtection.getRemainingLockoutSeconds(username);
@@ -107,9 +132,14 @@ public class AuthController {
             ));
         }
 
-        String password = body.get("password");
-
-        System.out.println("Login attempt for username: " + username);
+        // Antes esto era System.out.println("... " + username), que tiene
+        // dos problemas: (1) va a stdout sin nivel/formato, no a los logs
+        // reales de la app, y (2) el username lo controla quien llama, así
+        // que si contiene saltos de línea puede "inyectar" líneas de log
+        // falsas (log injection / log forging). SLF4J con placeholders no
+        // interpreta el contenido como formato, pero igual se recorta y se
+        // quitan saltos de línea antes de loguear.
+        log.info("Intento de login para username: {}", sanitizeForLog(username));
 
         Optional<User> userOpt = userRepository.findByUsername(username);
 
@@ -161,7 +191,7 @@ public class AuthController {
                 String role = user.getRole() != null ? user.getRole().getName() : "USER";
                 RefreshToken refreshToken = refreshTokenService.createRefreshToken(
                         user, describeDevice(request), clientIp(request));
-                System.out.println("Login successful, generated token for role: " + role);
+                log.info("Login exitoso, token generado para rol: {}", role);
                 return ResponseEntity.ok(Map.of(
                     "token", token,
                     "refreshToken", refreshToken.getToken(),
@@ -177,10 +207,18 @@ public class AuthController {
                         "remainingSeconds", remaining
                     ));
                 }
-                System.out.println("Password does not match");
+                log.info("Login fallido: la contraseña no coincide para username: {}", sanitizeForLog(username));
                 return ResponseEntity.status(401).body(Map.of("error", "Usuario o contraseña incorrecto. Intente de nuevo."));
             }
         } else {
+            // El username/email no existe. Igual se hace un BCrypt.checkpw()
+            // contra un hash de relleno (que nunca puede coincidir) para que
+            // esta rama tarde aproximadamente lo mismo que la de arriba
+            // (usuario real + contraseña incorrecta) y no se pueda usar la
+            // diferencia de tiempo de respuesta para averiguar qué usernames
+            // o correos existen en el sistema.
+            com.notastrinitario.app.security.PasswordSecurity.matches(password, DUMMY_BCRYPT_HASH);
+
             bruteForceProtection.recordFailedAttempt(username);
             if (bruteForceProtection.isBlocked(username)) {
                 long remaining = bruteForceProtection.getRemainingLockoutSeconds(username);
@@ -190,9 +228,18 @@ public class AuthController {
                     "remainingSeconds", remaining
                 ));
             }
-            System.out.println("No user found with username or email: " + username);
+            log.info("Login fallido: no existe usuario/email: {}", sanitizeForLog(username));
             return ResponseEntity.status(401).body(Map.of("error", "Usuario o contraseña incorrecto. Intente de nuevo."));
         }
+    }
+
+    /** Corta el texto y quita saltos de línea / retornos de carro antes de
+     *  meterlo en un log, para que texto controlado por quien llama a la
+     *  API no pueda forjar líneas de log falsas (log injection). */
+    private static String sanitizeForLog(String input) {
+        if (input == null) return "";
+        String cleaned = input.replaceAll("[\\r\\n]", "_");
+        return cleaned.length() > 100 ? cleaned.substring(0, 100) + "..." : cleaned;
     }
 
     @PostMapping("/register")

@@ -10,6 +10,7 @@ public class AppProperties {
     private Firebase firebase = new Firebase();
     private Institution institution = new Institution();
     private Ai ai = new Ai();
+    private Security security = new Security();
 
     public static class Jwt {
         // IMPORTANTE (seguridad): NUNCA pongas aquí un valor por defecto.
@@ -71,6 +72,26 @@ public class AppProperties {
         public void setMistralUrl(String mistralUrl) { this.mistralUrl = mistralUrl; }
     }
 
+    public static class Security {
+        // IMPORTANTE (seguridad): X-Forwarded-For lo puede escribir CUALQUIERA
+        // que le hable directo al backend (curl, Postman, un bot), no solo un
+        // proxy. Si se confía en ese encabezado sin tener un proxy real
+        // delante que lo sobrescriba, un atacante manda un valor distinto en
+        // cada petición y el RateLimitFilter y el BruteForceProtection nunca
+        // lo bloquean (cada "IP" falsa tiene su propio cupo nuevo): el
+        // rate-limit queda completamente evadido, que es justo lo que se
+        // supone que evita un ataque de denegación de servicio.
+        //
+        // Poner esto en true SOLO si el backend está detrás de un proxy de
+        // confianza (nginx, el DevTunnel, un load balancer) que vos controlás
+        // y que SIEMPRE reemplaza/limpia el X-Forwarded-For entrante antes de
+        // reenviar la petición. Variable de entorno: APP_SECURITY_TRUST_PROXY_HEADERS=true
+        private boolean trustProxyHeaders = false;
+
+        public boolean isTrustProxyHeaders() { return trustProxyHeaders; }
+        public void setTrustProxyHeaders(boolean trustProxyHeaders) { this.trustProxyHeaders = trustProxyHeaders; }
+    }
+
     public Jwt getJwt() { return jwt; }
     public void setJwt(Jwt jwt) { this.jwt = jwt; }
     public Firebase getFirebase() { return firebase; }
@@ -79,4 +100,6 @@ public class AppProperties {
     public void setInstitution(Institution institution) { this.institution = institution; }
     public Ai getAi() { return ai; }
     public void setAi(Ai ai) { this.ai = ai; }
+    public Security getSecurity() { return security; }
+    public void setSecurity(Security security) { this.security = security; }
 }

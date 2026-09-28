@@ -31,10 +31,29 @@ public class SecurityConfig {
                 return new JwtAuthenticationFilter(jwtUtil, userRepository);
         }
 
+        // RateLimitFilter está anotado @Component, así que Spring Boot lo
+        // registraría AUTOMÁTICAMENTE como filtro de servlet genérico para
+        // TODAS las rutas, además de la inserción manual de más abajo en la
+        // cadena de Spring Security. Sin este bean, cada petición pasaría
+        // dos veces por el filtro (consumiendo 2 tokens del mismo bucket en
+        // vez de 1), lo que en la práctica reduce el límite real a la mitad
+        // del configurado de forma confusa e involuntaria. Esto deshabilita
+        // ese registro automático duplicado; la única ejecución real queda
+        // en la cadena de Spring Security (ver securityFilterChain).
+        @Bean
+        public org.springframework.boot.web.servlet.FilterRegistrationBean<RateLimitFilter> rateLimitFilterRegistration(
+                        RateLimitFilter rateLimitFilter) {
+                org.springframework.boot.web.servlet.FilterRegistrationBean<RateLimitFilter> registration =
+                                new org.springframework.boot.web.servlet.FilterRegistrationBean<>(rateLimitFilter);
+                registration.setEnabled(false);
+                return registration;
+        }
+
         @Bean
         public SecurityFilterChain securityFilterChain(
                         HttpSecurity http,
-                        JwtAuthenticationFilter jwtAuthenticationFilter) throws Exception {
+                        JwtAuthenticationFilter jwtAuthenticationFilter,
+                        RateLimitFilter rateLimitFilter) throws Exception {
                 http
                                 .csrf(csrf -> csrf.disable())
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -108,8 +127,8 @@ public class SecurityConfig {
                 // Register JWT filter before username/password filter
                 http.addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
                 
-                // Register Rate Limit Filter
-                http.addFilterAfter(new com.notastrinitario.app.config.RateLimitFilter(), JwtAuthenticationFilter.class);
+                // Register Rate Limit Filter (bean gestionado por Spring, ver RateLimitFilter)
+                http.addFilterAfter(rateLimitFilter, JwtAuthenticationFilter.class);
 
                 return http.build();
         }

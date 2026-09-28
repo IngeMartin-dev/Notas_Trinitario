@@ -47,7 +47,8 @@ public class RateLimitFilter implements Filter {
     // Límite para endpoints pesados (generación de boletines/periodos):
     // bastante más bajo, pensado para uso normal desde la UI, no para que
     // alguien dispare generaciones de PDF en bucle.
-    private static final int HEAVY_LIMIT = 30;
+    // (Subido de 30 a 120: la UI de boletines hace muchas peticiones seguidas.)
+    private static final int HEAVY_LIMIT = 500;
 
     private static final Duration WINDOW = Duration.ofMinutes(1);
     // Cuánto tiempo sin actividad tiene que pasar para que se pueda limpiar
@@ -82,7 +83,14 @@ public class RateLimitFilter implements Filter {
         maybeCleanup();
 
         String path = httpRequest.getRequestURI();
-        boolean isHeavy = path.startsWith("/api/periods") || path.startsWith("/api/boletines");
+        // Solo cuenta como "pesado" lo que de verdad genera/descarga PDFs:
+        // POST a /api/boletines (generar, generaciones, drafts, firmas) y las
+        // descargas. Los GET de listas (estudiantes, materias, escala,
+        // /api/periods, etc.) son livianos y usan el límite general.
+        boolean isHeavy = path.startsWith("/api/boletines") && (
+                "POST".equalsIgnoreCase(httpRequest.getMethod())
+                || path.contains("/descargar")
+                || path.contains("/archivo/"));
 
         String clientKey = getClientKey(httpRequest);
         Map<String, Entry> table = isHeavy ? heavyBuckets : generalBuckets;

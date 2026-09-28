@@ -11,6 +11,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
 import { BehaviorSubject } from 'rxjs';
+import { AuthService } from './auth.service';
 
 export interface GenerationJobFile {
   studentId: number;
@@ -52,7 +53,7 @@ export class GenerationService {
   private pollHandle: any = null;
   private polling = false;
 
-  constructor(private http: HttpClient, private router: Router) {}
+  constructor(private http: HttpClient, private router: Router, private authService: AuthService) {}
 
   startPolling() {
     if (this.polling) return;
@@ -70,9 +71,24 @@ export class GenerationService {
   }
 
   refresh() {
+    // startPolling() se llama al arrancar la app (App constructor), ANTES
+    // de que el usuario inicie sesión. Sin este chequeo, cada 500ms se
+    // pedía /generaciones sin token y el backend respondía 403 en bucle
+    // (eso es lo que se veía repetido en la consola en la pantalla de
+    // login). Ahora, si no hay sesión, ni siquiera se hace la petición.
+    if (!this.authService.isAuthenticated()) {
+      return;
+    }
     this.http.get<GenerationJob[]>(`${API_BASE}/generaciones`).subscribe({
       next: (jobs) => this.jobsSubject.next(jobs || []),
-      error: () => { /* backend no disponible momentáneamente: no limpiar la lista */ }
+      error: (err) => {
+        // Si el token dejó de ser válido (expiró / logout en otra pestaña),
+        // no seguir insistiendo con la lista vieja en pantalla.
+        if (err?.status === 401 || err?.status === 403) {
+          this.jobsSubject.next([]);
+        }
+        /* otros errores: backend no disponible momentáneamente, no limpiar la lista */
+      }
     });
   }
 

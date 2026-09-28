@@ -1,6 +1,7 @@
 import { Injectable, NgZone } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, interval, Subscription } from 'rxjs';
+import { AuthService } from './auth.service';
 
 export interface Period {
   periodNumber: number;
@@ -24,7 +25,7 @@ export class GlobalRealtimeService {
   private http: HttpClient;
   private ngZone: NgZone;
   
-  constructor(http: HttpClient, ngZone: NgZone) {
+  constructor(http: HttpClient, ngZone: NgZone, private authService: AuthService) {
     this.http = http;
     this.ngZone = ngZone;
     this.requestNotificationPermission();
@@ -186,6 +187,12 @@ export class GlobalRealtimeService {
     
     this.ngZone.runOutsideAngular(() => {
       this.pollingSubscription = interval(10000).subscribe(() => {
+        // Igual que en GenerationService: esto arranca al iniciar la app,
+        // antes del login. Sin este chequeo, cada 10s se pedía /api/periods
+        // sin token y el backend respondía 403.
+        if (!this.authService.isAuthenticated()) {
+          return;
+        }
         this.http.get<Period[]>('http://localhost:8080/api/periods').subscribe({
           next: (periods) => {
             console.log('Periodos desde realtime service:', periods);

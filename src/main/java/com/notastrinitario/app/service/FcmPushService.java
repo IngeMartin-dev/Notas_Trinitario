@@ -144,25 +144,11 @@ public class FcmPushService {
     /**
      * Send a single push notification
      */
-    /**
-     * El frontend ahora registra el dispositivo por Firebase Installation ID
-     * (FID) en vez del token de registro clásico (deprecado desde
-     * firebase-admin 9.10.0). Un FID es corto (22 caracteres, sin ':'); un
-     * token clásico es largo (150+ caracteres) y trae ':' ("id:APA91b...").
-     * Así se distinguen sin tocar la base de datos: los tokens viejos que
-     * queden guardados se siguen enviando con setToken hasta que el usuario
-     * vuelva a iniciar sesión y el FID los reemplace (saveToken desactiva
-     * los anteriores del mismo tipo de dispositivo).
-     */
-    static boolean isFid(String value) {
-        return value != null && value.indexOf(':') < 0 && value.length() <= 40;
-    }
-
-    @SuppressWarnings("deprecation") // setToken solo para tokens clásicos heredados
     private void sendPushNotification(String token, String title, String body, String dataPayload) {
         try {
             // Create message
             Message.Builder messageBuilder = Message.builder()
+                    .setToken(token)
                     .setNotification(Notification.builder()
                             .setTitle(title)
                             .setBody(body)
@@ -184,12 +170,6 @@ public class FcmPushService {
                                     .setIcon("/Logo Colegio.png")
                                     .build())
                             .build());
-
-            if (isFid(token)) {
-                messageBuilder.setFid(token);
-            } else {
-                messageBuilder.setToken(token);
-            }
 
             // Add data payload if provided
             if (dataPayload != null && !dataPayload.isEmpty()) {

@@ -31,7 +31,7 @@ public class JwtUtil {
     // pegarlo en APP_JWT_SECRET (por ejemplo copiando un .env viejo), lo
     // rechazamos igual: ya está expuesto y no sirve como secreto.
     private static final String LEAKED_SECRET =
-            "a1b8aeb3b0cc2a4edf36f8fdc905bf730443be2cc98d689f6fc9c1e1d3c28efedf5701d17bf2de7bbf44f1693f8570dd015dad1500e744ea02869354b9042eca";
+            "7c1d5cbe385a7900294a714e414ede90df511d0d26215b5693ae0dcb4339329a1abddef6c272ee03273d3c6ad53f45d33a7774ad296a544e4c6328ec8298c43a";
 
     private final SecretKey key;
     private final long validity;

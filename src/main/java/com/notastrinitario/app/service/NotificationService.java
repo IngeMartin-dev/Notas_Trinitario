@@ -24,14 +24,9 @@ public class NotificationService {
     }
 
     public void sendNotification(User user, String title, String message, String type) {
-        // Check if there's already an unread notification of the same type for this
-        // user
-        List<Notification> existingUnread = notificationRepository.findUnreadByUserIdAndType(user.getId(), type);
-        if (!existingUnread.isEmpty()) {
-            System.out.println(
-                    "Notification already exists (unread) for user: " + user.getUsername() + " with type: " + type);
-            return; // Don't create a new notification if there's already an unread one
-        }
+        // CAMBIO: se eliminó la validación que descartaba la notificación si ya
+        // existía una sin leer del mismo tipo. Ahora cada evento (consolidado,
+        // boletín, etc.) crea su notificación y envía su push siempre.
 
         Notification notification = new Notification();
         notification.setUser(user);

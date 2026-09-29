@@ -1185,3 +1185,97 @@
   .no-students-content { background: var(--surface); }
   .grade-input::placeholder { color: var(--text-3); }
 }
+/* ── Porcentaje por nota (rol profesor) ───────────────────────────── */
+.pct-toolbar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px;
+  padding: 6px 10px; border: 1px solid var(--border); border-bottom: none;
+  background: var(--surface-2); font-size: .75rem; color: var(--text-3);
+}
+.pct-toolbar-title { font-weight: 700; text-transform: uppercase; letter-spacing: .03em; }
+.pct-total { font-weight: 700; }
+.pct-total.pct-ok { color: #1e8e3e; }
+.pct-total.pct-over { color: #d93025; }
+.pct-hint { font-style: italic; }
+.pct-add-form { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; width: 100%; }
+.pct-add-name, .pct-add-pct {
+  padding: 4px 6px; border: 1px solid var(--border); border-radius: 6px; font-size: .8rem;
+  background: var(--surface); color: inherit;
+}
+.pct-add-name { width: 170px; }
+.pct-add-pct { width: 64px; }
+.pct-add-ok, .pct-add-cancel { padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer; font-size: .78rem; }
+.pct-add-ok { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+.pct-add-error { color: #d93025; }
+
+.grades-table tr.pct-row th { vertical-align: middle; padding: 3px 2px; height: auto; }
+.grades-table th.pct-label { text-align: left; font-size: .65rem; }
+.grades-table th.pct-cell {
+  writing-mode: horizontal-tb; transform: none; width: 35px; min-width: 35px; height: auto;
+}
+.pct-input {
+  width: 30px; padding: 2px 0; text-align: center; font-size: .7rem;
+  border: 1px solid var(--border); border-radius: 4px; background: var(--surface); color: inherit;
+}
+.pct-input::placeholder { color: var(--text-3); opacity: .7; }
+.pct-plus {
+  width: 24px; height: 24px; border-radius: 50%; border: 1px solid #1a73e8; background: #fff;
+  color: #1a73e8; font-size: 1rem; line-height: 1; cursor: pointer; padding: 0;
+}
+.pct-plus:hover { background: #1a73e8; color: #fff; }
+.pct-remove { display: block; margin: 2px auto 0; border: none; background: none; color: #d93025; cursor: pointer; font-size: .85rem; line-height: 1; padding: 0; }
+.grades-table th.plus-col, .grades-table td.plus-cell { width: 30px; min-width: 30px; }
+.grades-table th.extra-col { text-transform: none; }
+
+/* ── Botón y panel "Porcentajes" ─────────────────────────────────── */
+.pct-wrap { margin: 8px 0; }
+.pct-open-btn {
+  padding: 6px 14px; border-radius: 8px; border: 1px solid #1a73e8; background: #fff;
+  color: #1a73e8; font-weight: 600; font-size: .85rem; cursor: pointer;
+}
+.pct-open-btn:hover, .pct-open-btn.active { background: #1a73e8; color: #fff; }
+.pct-open-badge { margin-left: 6px; padding: 1px 6px; border-radius: 10px; background: rgba(0,0,0,.15); font-size: .7rem; }
+.pct-panel {
+  margin-top: 8px; padding: 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--surface-2); max-width: 560px;
+}
+.pct-panel-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.pct-panel-title { font-weight: 700; font-size: .8rem; }
+.pct-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.pct-grid .pct-input { width: 64px; padding: 6px 4px; font-size: .8rem; }
+.pct-extra { display: flex; align-items: center; gap: 2px; }
+.pct-panel .pct-plus { margin-top: 10px; width: 32px; height: 32px; font-size: 1.2rem; }
+.pct-panel .pct-add-form { margin-top: 10px; }
+.pct-panel .pct-hint { margin: 8px 0 0; }
+
+.pct-rows { display: flex; flex-direction: column; gap: 8px; }
+.pct-row-item { display: flex; align-items: center; gap: 8px; }
+.pct-name-input {
+  width: 150px; padding: 6px 8px; font-size: .85rem; font-weight: 600;
+  border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: inherit;
+}
+.pct-row-item .pct-input { width: 64px; padding: 6px 4px; font-size: .85rem; }
+.pct-row-note { font-size: .72rem; color: var(--text-3); font-style: italic; }
+.pct-row-item .pct-remove { margin: 0; font-size: 1.1rem; }
+
+/* "+" del encabezado y menú de nombres */
+.grades-table th.plus-col { position: relative; width: 34px; min-width: 34px; vertical-align: bottom; }
+.col-plus {
+  width: 26px; height: 26px; border-radius: 50%; border: 1px solid #1a73e8; background: #fff;
+  color: #1a73e8; font-size: 1.1rem; line-height: 1; cursor: pointer; padding: 0;
+}
+.col-plus:hover { background: #1a73e8; color: #fff; }
+.col-menu {
+  position: absolute; top: 100%; left: 0; z-index: 30; min-width: 150px; padding: 4px;
+  display: flex; flex-direction: column; gap: 2px; text-transform: none; letter-spacing: 0;
+  background: var(--surface, #fff); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,.18);
+}
+.col-menu-item {
+  display: flex; justify-content: space-between; gap: 10px; padding: 6px 10px; border: none;
+  background: none; text-align: left; cursor: pointer; border-radius: 6px; font-size: .8rem; color: inherit;
+}
+.col-menu-item:hover { background: var(--surface-2); }
+.col-menu-pct { color: var(--text-3); font-size: .72rem; }
+.col-menu-empty { padding: 6px 10px; font-size: .75rem; color: var(--text-3); font-weight: 400; }
+.col-x { border: none; background: none; color: #d93025; cursor: pointer; font-size: .85rem; line-height: 1; padding: 0; }
+.grades-table td.plus-cell { width: 34px; min-width: 34px; }

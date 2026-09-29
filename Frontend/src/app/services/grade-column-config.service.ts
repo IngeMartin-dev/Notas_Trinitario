@@ -8,6 +8,16 @@ export interface GradeColumn {
   id: string;
   name: string;
   type: GradeColumnType;
+  /** Porcentaje (1-100) que aporta esta columna a la nota final. */
+  pct?: number | null;
+  /** Nombre que se muestra (editable). `name` es la clave con la que se guardan las notas y no cambia. */
+  label?: string;
+  /** 'cat' = nombre con porcentaje; 'col' = columna de la tabla que pertenece a una categoría. */
+  kind?: 'cat' | 'col';
+  /** Solo en kind 'col': id de la categoría a la que pertenece. */
+  cat?: string;
+  /** true para ACT1..ACT7 (columnas fijas): solo guardan su porcentaje. */
+  base?: boolean;
 }
 
 export interface GradeColumnConfigDto {

@@ -5,7 +5,6 @@ import com.notastrinitario.app.entity.Student;
 import com.notastrinitario.app.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -156,8 +155,8 @@ public class SchoolYearService {
      * Promueve a todos los estudiantes activos un grado hacia arriba
      * (Grado 7o -> Grado 8o, etc). Los de Grado 11o se marcan como
      * graduados (active = false) y no requieren organizacion de salon.
-     * A los demas se les deja el salon vacio temporalmente: hay que
-     * llamar a assignClassrooms(...) para distribuirlos en A/B.
+     * Los demas conservan su salon (A sigue en A, B sigue en B). Solo
+     * quedan pendientes los que no tenian salon asignado.
      */
     @Transactional
     public PromocionResultado advanceYear() {
@@ -179,17 +178,23 @@ public class SchoolYearService {
                 s.setActive(false);
                 resultado.estudiantesGraduados++;
             } else {
-                int nuevoNumero = Math.min(GRADO_MAXIMO, numero + 1);
+                // n -> n+1 conservando el salon (1A -> 2A, 1B -> 2B, ...) para que
+                // los estudiantes aparezcan de inmediato en su nuevo grado.
+                // Grado 1 queda sin estudiantes (no existe Grado 0); alli se
+                // registran los estudiantes nuevos.
+                int nuevoNumero = numero + 1;
                 s.setGrade(formatearGrado(nuevoNumero));
-                s.setClassGroup(null);
                 resultado.estudiantesPromovidos++;
 
-                Map<String, Object> pendiente = new LinkedHashMap<>();
-                pendiente.put("studentId", s.getId());
-                pendiente.put("name", s.getName());
-                pendiente.put("surname", s.getSurname());
-                pendiente.put("newGrade", s.getGrade());
-                resultado.pendientesDeOrganizar.add(pendiente);
+                // Solo quedan "pendientes" los que no tenian salon asignado.
+                if (s.getClassGroup() == null || s.getClassGroup().isBlank()) {
+                    Map<String, Object> pendiente = new LinkedHashMap<>();
+                    pendiente.put("studentId", s.getId());
+                    pendiente.put("name", s.getName());
+                    pendiente.put("surname", s.getSurname());
+                    pendiente.put("newGrade", s.getGrade());
+                    resultado.pendientesDeOrganizar.add(pendiente);
+                }
             }
         }
 

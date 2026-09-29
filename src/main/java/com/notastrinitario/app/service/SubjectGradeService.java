@@ -217,7 +217,100 @@ public class SubjectGradeService {
      * Cada nota guardada (SubjectGrade.gradeName) se clasifica según el tipo
      * que le haya asignado el profesor en su configuración de columnas.
      */
+    /**
+     * Modo "porcentaje": el grupo ACT1..ACT7 tiene un solo porcentaje (entrada
+     * "act") y cada columna que agrega el profesor (Quiz, Taller...) tiene el
+     * suyo (1-100), guardados como "pct" dentro de columnsJson. Mismo calculo que la pantalla
+     * de Calificaciones:
+     *   80% = promedio ponderado de las columnas con nota x 0.8
+     *   20% = Eval.Period x 0.2
+     * Devuelve null si ninguna columna tiene "pct" (se usa el modo anterior).
+     */
+    private Map<String, Object> calculatePerColumnWeightedGrade(List<SubjectGrade> grades, String columnsJson) {
+        if (columnsJson == null || columnsJson.isBlank()) return null;
+
+        // Formato guardado por el frontend en columnsJson:
+        //   kind "cat": un nombre con su porcentaje  (id "act" = grupo ACT1..ACT7)
+        //   kind "col": una columna de la tabla que pertenece a una categoria ("cat")
+        //   sin kind  : formato anterior, cada columna con su propio pct
+        Map<String, Double> catPct = new HashMap<>();     // idCategoria -> pct
+        Map<String, String> colToCat = new HashMap<>();   // nombreNota(minusculas) -> idCategoria
+        java.util.regex.Matcher objectMatcher =
+                java.util.regex.Pattern.compile("\\{[^{}]*\\}").matcher(columnsJson);
+        while (objectMatcher.find()) {
+            String obj = objectMatcher.group();
+            String id = extraerCampoJson(obj, "id");
+            String name = extraerCampoJson(obj, "name");
+            String kind = extraerCampoJson(obj, "kind");
+            String cat = extraerCampoJson(obj, "cat");
+            Double pct = null;
+            java.util.regex.Matcher pm = java.util.regex.Pattern
+                    .compile("\"pct\"\\s*:\\s*(\\d+(?:\\.\\d+)?)").matcher(obj);
+            if (pm.find()) pct = Double.parseDouble(pm.group(1));
+
+            if ("col".equals(kind)) {
+                if (name != null && cat != null) colToCat.put(name.toLowerCase(), cat);
+            } else if ("cat".equals(kind) || "act".equals(id)) {
+                if (id != null && pct != null && pct > 0) catPct.put(id, pct);
+            } else if (name != null && pct != null && pct > 0) {
+                String key = id != null ? id : name;
+                catPct.put(key, pct);
+                colToCat.put(name.toLowerCase(), key);
+            }
+        }
+        if (catPct.isEmpty()) return null;
+
+        // Por categoria: promedio de sus notas; luego se pondera con su porcentaje.
+        Map<String, double[]> acumulado = new HashMap<>(); // idCategoria -> {suma, cantidad}
+        Double evaluation = null;
+        String appreciative = null;
+        for (SubjectGrade g : grades) {
+            if (g.getAppreciative() != null && !g.getAppreciative().isEmpty()) {
+                appreciative = g.getAppreciative();
+            }
+            if (g.getGradeValue() == null) continue;
+            if (Boolean.TRUE.equals(g.getIsEvaluation())) {
+                evaluation = g.getGradeValue();
+                continue;
+            }
+            if (g.getGradeName() == null) continue;
+            String nombre = g.getGradeName().toLowerCase();
+            String catId = (catPct.containsKey("act") && nombre.matches("act0?[1-7]"))
+                    ? "act" : colToCat.get(nombre);
+            if (catId == null || !catPct.containsKey(catId)) continue;
+            double[] acc = acumulado.computeIfAbsent(catId, k -> new double[2]);
+            acc[0] += g.getGradeValue();
+            acc[1] += 1;
+        }
+
+        double suma = 0.0, pesos = 0.0;
+        for (Map.Entry<String, double[]> e : acumulado.entrySet()) {
+            double pct = catPct.get(e.getKey());
+            suma += (e.getValue()[0] / e.getValue()[1]) * pct;
+            pesos += pct;
+        }
+
+        double promedio = pesos > 0 ? suma / pesos : 0.0;
+        double p80 = promedio * 0.8;
+        double p20 = (evaluation != null ? evaluation : 0.0) * 0.2;
+        double finalGrade = Math.round((p80 + p20) * 100.0) / 100.0;
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("hasGrades", true);
+        result.put("weighted", true);
+        result.put("average80", Math.round(p80 * 100.0) / 100.0);
+        result.put("evaluation20", Math.round(p20 * 100.0) / 100.0);
+        result.put("finalGrade", finalGrade);
+        result.put("appreciative", appreciative != null ? appreciative : "");
+        result.put("regularGradesCount", grades.size());
+        result.put("hasEvaluation", evaluation != null);
+        return result;
+    }
+
     private Map<String, Object> calculateWeightedFinalGrade(List<SubjectGrade> grades, GradeColumnConfig config) {
+        Map<String, Object> porColumna = calculatePerColumnWeightedGrade(grades, config.getColumnsJson());
+        if (porColumna != null) return porColumna;
+
         Map<String, String> tipoPorColumna = parseColumnTypes(config.getColumnsJson());
 
         List<Double> quizzes = new ArrayList<>();

@@ -40,6 +40,8 @@ interface RecoveryPlan {
   createdAt: Date;
 }
 
+interface PctCategory { id: string; name: string; pct: number | null; }
+
 @Component({
   selector: 'app-grades',
   standalone: true,
@@ -108,6 +110,25 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
   // Notas de las columnas dinámicas: { [studentId]: { [columnId]: valor } }
   dynamicGradeValues: { [studentId: number]: { [columnId: string]: number | null } } = {};
   savingDynamicCell: { [key: string]: boolean } = {};
+
+  // Grupo ACT (ACT1..ACT7): un nombre y un porcentaje (1-100) para todas.
+  actName = 'ACT';            // nombre editable del grupo ACT1..ACT7
+  actPct: number | null = null; // un solo porcentaje para todas las ACT
+  // Nombres con porcentaje creados en el panel "Porcentajes" (Quiz, Taller...).
+  categories: PctCategory[] = [];
+  showPctPanel = false;
+  showAddCategoryForm = false;
+  addCategoryName = '';
+  addCategoryPct: number | null = null;
+  addCategoryError = '';
+  // Menú del "+" de la tabla (elegir un nombre para agregar una columna).
+  showAddColumnMenu = false;
+
+  // Evita que saveNFinal calcule con porcentajes/columnas a medio cargar
+  // (sobrescribiría la nota final guardada con un valor incorrecto).
+  private weightsReady = false;
+  private gradesLoaded = false;
+  private saveConfigTimer: any = null;
 
   get totalConfigPct(): number {
     return (this.quizzesPct || 0) + (this.talleresPct || 0) + (this.actividadesPct || 0);
@@ -484,6 +505,11 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
 
     // Go to the selected period and load its saved grades/recovery data
     this.selectedPeriod = newPeriod;
+    this.dynamicGradeValues = {};
+    if (this.gradeColumns.length > 0) {
+      this.weightsReady = false;
+      this.loadDynamicGradeValues();
+    }
     this.loadGrades();
     this.loadRecoveryData();
   }
@@ -519,105 +545,304 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     const subjectName = this.selectedSubject || this.teacherSubjectName;
     if (!teacherId || !subjectName || !this.selectedGrade || !this.selectedClassroom) {
       this.gradeColumns = [];
+      this.actPct = null;
+      this.actName = 'ACT';
+      this.categories = [];
+      this.weightsReady = true;
       return;
     }
 
+    this.weightsReady = false;
     this.gradeColumnConfigService.getConfig(teacherId, subjectName, this.selectedGrade, this.selectedClassroom)
       .subscribe({
         next: (config: GradeColumnConfigDto) => {
           this.quizzesPct = config.quizzesPct || 0;
           this.talleresPct = config.talleresPct || 0;
           this.actividadesPct = config.actividadesPct || 0;
+          let all: GradeColumn[] = [];
           try {
-            this.gradeColumns = JSON.parse(config.columnsJson || '[]');
+            all = JSON.parse(config.columnsJson || '[]');
           } catch {
-            this.gradeColumns = [];
+            all = [];
           }
+          // Entrada 'act' = nombre + porcentaje del grupo ACT1..ACT7.
+          // Si viene del formato anterior (act1..act7 con porcentaje cada una)
+          // se suman en un solo porcentaje.
+          const actEntry = all.find(c => c.id === 'act');
+          if (actEntry) {
+            this.actName = (actEntry.label || actEntry.name || 'ACT');
+            this.actPct = actEntry.pct ?? null;
+          } else {
+            const legacy = all.filter(c => /^act[1-7]$/.test(c.id));
+            const sum = legacy.reduce((a, c) => a + (c.pct || 0), 0);
+            this.actName = 'ACT';
+            this.actPct = sum > 0 ? Math.min(100, sum) : null;
+          }
+          // Categorías (nombre + %) y columnas de la tabla que pertenecen a ellas.
+          const cats: PctCategory[] = [];
+          const cols: GradeColumn[] = [];
+          for (const c of all) {
+            if (c.id === 'act' || /^act[1-7]$/.test(c.id)) continue;
+            if (c.kind === 'cat') {
+              cats.push({ id: c.id, name: c.name, pct: c.pct ?? null });
+            } else if (c.kind === 'col') {
+              cols.push({ id: c.id, name: c.name, type: 'ACTIVIDAD', kind: 'col', cat: c.cat });
+            } else {
+              // Formato anterior: cada columna extra tenía nombre y % propios.
+              cats.push({ id: 'cat_' + c.id, name: c.label || c.name, pct: c.pct ?? null });
+              cols.push({ id: c.id, name: c.name, type: 'ACTIVIDAD', kind: 'col', cat: 'cat_' + c.id });
+            }
+          }
+          this.categories = cats;
+          this.gradeColumns = cols;
           if (this.gradeColumns.length > 0) {
             this.loadDynamicGradeValues();
+          } else {
+            this.markWeightsReady();
           }
           // El componente usa OnPush: sin esto, la tabla de columnas
           // dinámicas no se repinta hasta que otra interacción dispare
-          // detección de cambios (por eso "no se actualizaba en tiempo real").
+          // detección de cambios.
           this.cdr.markForCheck();
         },
-        error: () => { this.gradeColumns = []; this.cdr.markForCheck(); }
+        error: () => {
+          this.gradeColumns = [];
+          this.categories = [];
+          this.actPct = null;
+          this.markWeightsReady();
+          this.cdr.markForCheck();
+        }
       });
   }
 
-  openColumnConfigModal() {
-    this.columnConfigError = '';
-    this.showColumnConfigModal = true;
+  private markWeightsReady() {
+    this.weightsReady = true;
+    if (this.gradesLoaded) this.saveAllNFinal();
   }
 
-  closeColumnConfigModal() {
-    this.showColumnConfigModal = false;
-  }
-
-  addGradeColumn() {
-    const name = this.newColumnName.trim();
-    if (!name) return;
-    if (this.gradeColumns.some(c => c.name.toLowerCase() === name.toLowerCase())) {
-      this.columnConfigError = 'Ya existe una columna con ese nombre';
-      return;
+  private saveAllNFinal() {
+    for (const student of this.students) {
+      this.saveNFinal(student.id);
     }
-    this.columnConfigError = '';
-    this.gradeColumns = [...this.gradeColumns, {
-      id: 'col_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
-      name,
-      type: this.newColumnType
-    }];
-    this.newColumnName = '';
   }
 
-  removeGradeColumn(columnId: string) {
-    this.gradeColumns = this.gradeColumns.filter(c => c.id !== columnId);
+  // ── Panel "Porcentajes": solo nombres con su porcentaje (1-100) ───────
+  /** true si el profesor ya puso al menos un porcentaje: se usa el promedio ponderado. */
+  get weightedMode(): boolean {
+    return (this.actPct ?? 0) > 0 || this.categories.some(c => (c.pct ?? 0) > 0);
   }
 
-  saveColumnConfig() {
+  get totalPctSum(): number {
+    return (this.actPct || 0) + this.categories.reduce((a, c) => a + (c.pct || 0), 0);
+  }
+
+  private categoryById(id: string | undefined): PctCategory | undefined {
+    return this.categories.find(c => c.id === id);
+  }
+
+  /** Encabezado de la columna ACT número n: "ACT1", o "Quiz1" si se renombró el grupo. */
+  actHeader(n: number): string {
+    return `${this.actName}${n}`;
+  }
+
+  /** Encabezado de una columna agregada: nombre de su categoría + número ("Quiz1", "Quiz2"...). */
+  colHeader(col: GradeColumn): string {
+    const cat = this.categoryById(col.cat);
+    const same = this.gradeColumns.filter(c => c.cat === col.cat);
+    const n = same.findIndex(c => c.id === col.id) + 1;
+    return `${cat ? cat.name : col.name}${n}`;
+  }
+
+  private parsePct(raw: string): number | null {
+    const n = parseInt(raw.replace(/[^0-9]/g, ''), 10);
+    if (isNaN(n)) return null;
+    return Math.max(1, Math.min(100, n));
+  }
+
+  togglePctPanel() {
+    this.showPctPanel = !this.showPctPanel;
+    if (!this.showPctPanel) this.showAddCategoryForm = false;
+    this.cdr.markForCheck();
+  }
+
+  onActPctInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const v = this.parsePct(input.value);
+    if (input.value !== '' && v !== null && String(v) !== input.value) input.value = String(v);
+    this.actPct = v;
+    this.onPctsChanged();
+  }
+
+  onActNameInput(event: Event) {
+    const name = (event.target as HTMLInputElement).value.trim();
+    if (!name) return; // no se permite dejarlo vacío
+    this.actName = name;
+    this.onPctsChanged(false);
+  }
+
+  onActNameBlur(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.value.trim()) input.value = this.actName;
+  }
+
+  onCategoryPctInput(cat: PctCategory, event: Event) {
+    const input = event.target as HTMLInputElement;
+    const v = this.parsePct(input.value);
+    if (input.value !== '' && v !== null && String(v) !== input.value) input.value = String(v);
+    this.categories = this.categories.map(c => c.id === cat.id ? { ...c, pct: v } : c);
+    this.onPctsChanged();
+  }
+
+  onCategoryNameInput(cat: PctCategory, event: Event) {
+    const name = (event.target as HTMLInputElement).value.trim();
+    if (!name) return;
+    this.categories = this.categories.map(c => c.id === cat.id ? { ...c, name } : c);
+    this.onPctsChanged(false);
+  }
+
+  onCategoryNameBlur(cat: PctCategory, event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (!input.value.trim()) input.value = cat.name;
+  }
+
+  private onPctsChanged(recalculate = true) {
+    this.cdr.markForCheck();
+    // Guardado con pequeña espera para no golpear el servidor en cada tecla.
+    if (this.saveConfigTimer) clearTimeout(this.saveConfigTimer);
+    this.saveConfigTimer = setTimeout(() => this.persistColumnConfig(recalculate), 600);
+  }
+
+  /** Guarda en el servidor: grupo ACT, categorías (nombre + %) y columnas agregadas. */
+  private persistColumnConfig(recalculate: boolean) {
     const teacherId = this.currentTeacherId();
     const subjectName = this.selectedSubject || this.teacherSubjectName;
     if (!teacherId || !subjectName || !this.selectedGrade || !this.selectedClassroom) return;
 
-    if (this.totalConfigPct > 100) {
-      this.columnConfigError = 'La suma de los porcentajes no puede superar 100%';
-      return;
-    }
-
-    this.columnConfigLoading = true;
-    this.columnConfigError = '';
-
+    const entries: GradeColumn[] = [
+      { id: 'act', kind: 'cat', name: this.actName, type: 'ACTIVIDAD', pct: this.actPct ?? null, base: true },
+      ...this.categories.map(c => ({
+        id: c.id, kind: 'cat' as const, name: c.name, type: 'ACTIVIDAD' as GradeColumnType, pct: c.pct ?? null
+      })),
+      ...this.gradeColumns.map(c => ({
+        id: c.id, kind: 'col' as const, name: c.name, type: 'ACTIVIDAD' as GradeColumnType, cat: c.cat
+      }))
+    ];
     this.gradeColumnConfigService.saveConfig(
       teacherId, subjectName, this.selectedGrade, this.selectedClassroom,
-      this.gradeColumns, this.quizzesPct, this.talleresPct, this.actividadesPct
+      entries, 0, 0, 0
     ).subscribe({
-      next: () => {
-        this.columnConfigLoading = false;
-        this.showColumnConfigModal = false;
-        this.loadDynamicGradeValues();
-        // Recarga las notas para que se refleje la nota final ponderada.
-        this.loadGrades();
-        this.cdr.markForCheck();
-      },
-      error: (err: any) => {
-        this.columnConfigLoading = false;
-        this.columnConfigError = err?.error?.error || 'No se pudo guardar la configuración';
-        this.cdr.markForCheck();
-      }
+      next: () => { if (recalculate) this.saveAllNFinal(); },
+      error: () => { /* se reintentará en el próximo cambio */ }
     });
+  }
+
+  // ── "+" del panel: crear un nombre con su porcentaje ────────────────────
+  toggleAddCategoryForm() {
+    this.showAddCategoryForm = !this.showAddCategoryForm;
+    this.addCategoryError = '';
+    this.addCategoryName = '';
+    this.addCategoryPct = null;
+    this.cdr.markForCheck();
+  }
+
+  confirmAddCategory() {
+    const name = this.addCategoryName.trim();
+    if (!name) { this.addCategoryError = 'Escribe un nombre (ej: Quiz, Taller).'; return; }
+    const lower = name.toLowerCase();
+    if (lower === this.actName.toLowerCase() || this.categories.some(c => c.name.toLowerCase() === lower)) {
+      this.addCategoryError = 'Ya existe un porcentaje con ese nombre.';
+      return;
+    }
+    const pct = this.addCategoryPct != null ? Math.max(1, Math.min(100, Math.round(this.addCategoryPct))) : null;
+    this.categories = [...this.categories, {
+      id: 'cat_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      name,
+      pct
+    }];
+    this.showAddCategoryForm = false;
+    this.addCategoryName = '';
+    this.addCategoryPct = null;
+    this.addCategoryError = '';
+    this.persistColumnConfig(true);
+    this.cdr.markForCheck();
+  }
+
+  async removeCategory(cat: PctCategory) {
+    const cols = this.gradeColumns.filter(c => c.cat === cat.id).length;
+    const extra = cols > 0 ? ` Se quitarán también sus ${cols} columna(s) de la tabla.` : '';
+    const ok = await this.dialogService.confirm(
+      `¿Quitar "${cat.name}" de los porcentajes?${extra} Sus notas dejarán de contar en la nota final.`,
+      'Quitar porcentaje'
+    );
+    if (!ok) return;
+    this.categories = this.categories.filter(c => c.id !== cat.id);
+    this.gradeColumns = this.gradeColumns.filter(c => c.cat !== cat.id);
+    this.persistColumnConfig(true);
+    this.cdr.markForCheck();
+  }
+
+  // ── "+" de la tabla: agregar una columna eligiendo un nombre ───────────
+  toggleAddColumnMenu() {
+    this.showAddColumnMenu = !this.showAddColumnMenu;
+    this.cdr.markForCheck();
+  }
+
+  addColumnFromCategory(cat: PctCategory) {
+    // Clave única con la que se guardan las notas de esta columna (no cambia
+    // aunque después se renombre el porcentaje).
+    const taken = new Set([
+      ...this.noteNames.map(n => n.toLowerCase()), 'nfinal', 'n.final',
+      ...this.gradeColumns.map(c => c.name.toLowerCase())
+    ]);
+    let n = this.gradeColumns.filter(c => c.cat === cat.id).length + 1;
+    let key = `${cat.name}${n}`;
+    while (taken.has(key.toLowerCase())) { n++; key = `${cat.name}${n}`; }
+
+    this.gradeColumns = [...this.gradeColumns, {
+      id: 'col_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      name: key,
+      type: 'ACTIVIDAD',
+      kind: 'col',
+      cat: cat.id
+    }];
+    this.showAddColumnMenu = false;
+    this.persistColumnConfig(true);
+    this.cdr.markForCheck();
+  }
+
+  async removeColumn(col: GradeColumn) {
+    const ok = await this.dialogService.confirm(
+      `¿Quitar la columna "${this.colHeader(col)}"? Sus notas dejarán de contar en la nota final.`,
+      'Quitar columna'
+    );
+    if (!ok) return;
+    this.gradeColumns = this.gradeColumns.filter(c => c.id !== col.id);
+    this.persistColumnConfig(true);
+    this.cdr.markForCheck();
   }
 
   // ── Notas de las columnas dinámicas ──────────────────────────────────
   loadDynamicGradeValues() {
-    if (!this.selectedGrade || !this.selectedClassroom || !this.selectedPeriod || this.students.length === 0) return;
+    if (!this.selectedGrade || !this.selectedClassroom || !this.selectedPeriod || this.students.length === 0) {
+      this.markWeightsReady();
+      return;
+    }
     const teacherId = this.currentTeacherId();
     const subjectName = this.selectedSubject || this.teacherSubjectName || '';
-    if (!teacherId || !subjectName) return;
+    if (!teacherId || !subjectName) {
+      this.markWeightsReady();
+      return;
+    }
 
+    this.weightsReady = false;
     this.dynamicGradeValues = {};
+    let pending = this.students.length;
+    const done = () => {
+      pending--;
+      if (pending <= 0) this.markWeightsReady();
+    };
 
     for (const student of this.students) {
-      const subjectIdParam = this.selectedSubjectId != null ? `&subjectId=${this.selectedSubjectId}` : '';
       const url = `http://localhost:8080/api/grades/student/${student.id}/period/${this.selectedPeriod}`;
       this.http.get<any[]>(url).subscribe({
         next: (grades) => {
@@ -633,13 +858,20 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
           }
           this.dynamicGradeValues[student.id] = { ...values };
           this.cdr.markForCheck();
-        }
+          done();
+        },
+        error: () => done()
       });
     }
   }
 
   getDynamicGradeValue(studentId: number, columnId: string): number | null {
     return this.dynamicGradeValues[studentId]?.[columnId] ?? null;
+  }
+
+  getDynamicGradeDisplay(studentId: number, columnId: string): string {
+    const v = this.getDynamicGradeValue(studentId, columnId);
+    return v === null ? '' : v.toString().replace('.', ',');
   }
 
   onDynamicGradeInput(studentId: number, column: GradeColumn, event: Event) {
@@ -676,8 +908,8 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     }).subscribe({
       next: () => {
         this.savingDynamicCell[cacheKey] = false;
-        // La nota final ponderada cambió: refresca el cálculo mostrado.
-        this.loadGrades();
+        // La nota final ponderada cambió: recalcula y guarda solo la de este estudiante.
+        this.saveNFinal(studentId);
         this.cdr.markForCheck();
       },
       error: () => { this.savingDynamicCell[cacheKey] = false; this.cdr.markForCheck(); }
@@ -748,6 +980,7 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
 
   loadGrades() {
     if (!this.selectedGrade || !this.selectedClassroom || !this.selectedPeriod) return;
+    this.gradesLoaded = false;
 
     // Initialize empty grades only (recoveryData already loaded in loadData)
     this.gradesData = {};
@@ -844,9 +1077,8 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
           this.showLoadingScreen = false;
         }, 300);
 
-        for (const student of this.students) {
-          this.saveNFinal(student.id);
-        }
+        this.gradesLoaded = true;
+        if (this.weightsReady) this.saveAllNFinal();
         this.cdr.markForCheck();
       },
       error: () => {
@@ -1030,8 +1262,48 @@ loadTeacherSubjectsForGradeRange() {
     return subj?.level ? `${name} (${subj.level})` : name;
   }
 
-  // 80% = promedio(ACT1-7 + Auto.Eval + Prom.Parc) * 0.8
+  /** Promedio ponderado: grupo ACT + cada nombre del panel Porcentajes.
+   *  Solo cuentan las que tienen nota; los pesos se reparten entre esas. */
+  getWeightedActivityAverage(studentId: number): number | null {
+    let sum = 0;
+    let weights = 0;
+
+    // Grupo ACT: promedio de ACT1..ACT7 con nota, con un solo porcentaje.
+    const actPct = this.actPct ?? 0;
+    if (actPct > 0) {
+      const vals = [1, 2, 3, 4, 5, 6, 7]
+        .map(i => this.getGrade(studentId, i))
+        .filter(v => v !== null) as number[];
+      if (vals.length > 0) {
+        sum += (vals.reduce((a, b) => a + b, 0) / vals.length) * actPct;
+        weights += actPct;
+      }
+    }
+    // Cada nombre agregado: promedio de sus columnas con nota, con su porcentaje.
+    for (const cat of this.categories) {
+      const pct = cat.pct ?? 0;
+      if (pct <= 0) continue;
+      const vals = this.gradeColumns
+        .filter(c => c.cat === cat.id)
+        .map(c => this.getDynamicGradeValue(studentId, c.id))
+        .filter(v => v !== null) as number[];
+      if (vals.length > 0) {
+        sum += (vals.reduce((a, b) => a + b, 0) / vals.length) * pct;
+        weights += pct;
+      }
+    }
+    return weights > 0 ? sum / weights : null;
+  }
+
+  // 80% = promedio de actividades * 0.8. Si el profesor puso porcentajes,
+  // el promedio es ponderado; si no, es el promedio simple de siempre.
   get80Percent(studentId: number): string {
+    if (this.weightedMode) {
+      const w = this.getWeightedActivityAverage(studentId);
+      if (w === null) return '-';
+      return (w * 0.8).toFixed(2).replace('.', ',');
+    }
+
     const grades = [
       this.getGrade(studentId, 1),
       this.getGrade(studentId, 2),
@@ -1667,6 +1939,7 @@ loadTeacherSubjectsForGradeRange() {
   }
 
   saveNFinal(studentId: number) {
+    if (!this.weightsReady) return;
     const p80 = this.get80PercentValue(studentId);
     const p20 = this.get20PercentValue(studentId);
 
@@ -3072,292 +3345,78 @@ if (!response.ok) {
     }, 100);
   }
 
+  /**
+   * Navegación tipo Excel dentro de la tabla de notas (funciona con cualquier
+   * columna: ACT, columnas añadidas, Auto.Eval, recuperación, etc.):
+   *   ↑ / ↓        celda de arriba / abajo (misma columna)
+   *   Enter        baja una fila (Shift+Enter sube)
+   *   → / ←        celda de la derecha / izquierda; al final de la fila pasa a
+   *                la siguiente (y al inicio regresa a la anterior)
+   * Al llegar a una celda se selecciona su contenido, así al escribir se
+   * reemplaza el valor, como en Excel. En los campos de texto largo
+   * (J.INTEG) ← → mueven el cursor y solo saltan de celda en los extremos.
+   */
   handleKeydown(event: KeyboardEvent) {
-    if (!event) return;
-    if (!this.focusedCell || !this.students.length) return;
+    if (!event || (event as any).__navHandled) return;
+    const target = event.target as HTMLElement | null;
+    if (!target || target.tagName !== 'INPUT' || !target.closest('.grades-table')) return;
 
-    const { studentId, noteIndex } = this.focusedCell;
-    const studentIndex = this.students.findIndex(s => s.id === studentId);
+    const key = event.key;
+    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter'].includes(key)) return;
+    // El mismo evento llega por el (keydown) de la celda y por el listener global.
+    (event as any).__navHandled = true;
 
-    let nextStudentId: number | null = null;
-    let nextNoteIndex = noteIndex;
-    let isRecoveryCell = false;
-    let recoveryField: 'recup-escrita' | 'recup-oral' | 'recovery-jinteg' | 'recovery-compsocial' | null = null;
+    const input = target as HTMLInputElement;
+    const row = input.closest('tr');
+    const tbody = row?.parentElement;
+    if (!row || !tbody) return;
 
-     const targetEl = event.target as HTMLElement | null;
-     if (targetEl) {
-      const id = targetEl.id;
-      if (id === `recup-escrita-${studentId}`) {
-        isRecoveryCell = true;
-        recoveryField = 'recup-escrita';
-      } else if (id === `recup-oral-${studentId}`) {
-        isRecoveryCell = true;
-        recoveryField = 'recup-oral';
-      } else if (id === `recovery-jinteg-${studentId}`) {
-        isRecoveryCell = true;
-        recoveryField = 'recovery-jinteg';
-      } else if (id === `recovery-compsocial-${studentId}`) {
-        isRecoveryCell = true;
-        recoveryField = 'recovery-compsocial';
-      }
+    const rows = Array.from(tbody.children).filter(r => r.tagName === 'TR') as HTMLElement[];
+    const rowIdx = rows.indexOf(row);
+    const cellsOf = (r: HTMLElement | undefined) =>
+      r ? Array.from(r.querySelectorAll('input')) as HTMLInputElement[] : [];
+    const col = cellsOf(row).indexOf(input);
+    if (rowIdx < 0 || col < 0) return;
+
+    // Campos de texto largo: dejar mover el cursor salvo en los extremos.
+    const isLongText = input.maxLength > 6;
+    if (isLongText && (key === 'ArrowLeft' || key === 'ArrowRight')) {
+      const atStart = input.selectionStart === 0 && input.selectionEnd === 0;
+      const atEnd = input.selectionStart === input.value.length && input.selectionEnd === input.value.length;
+      if ((key === 'ArrowLeft' && !atStart) || (key === 'ArrowRight' && !atEnd)) return;
     }
 
-    switch (event.key) {
+    let dest: HTMLInputElement | undefined;
+    switch (key) {
+      case 'ArrowUp':
+        dest = cellsOf(rows[rowIdx - 1])[col];
+        break;
+      case 'ArrowDown':
+        dest = cellsOf(rows[rowIdx + 1])[col];
+        break;
+      case 'Enter':
+        dest = cellsOf(rows[rowIdx + (event.shiftKey ? -1 : 1)])[col];
+        break;
       case 'ArrowRight': {
-        event.preventDefault();
-
-        if (isRecoveryCell) {
-          if (recoveryField === 'recovery-jinteg') {
-            const el = document.querySelector(`#recovery-compsocial-${studentId}`) as HTMLInputElement | null;
-            if (el) {
-              el.focus();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 8 };
-            }
-            return;
-          }
-          if (recoveryField === 'recovery-compsocial') {
-            const el = document.querySelector(`#recup-escrita-${studentId}`) as HTMLInputElement | null;
-            if (el) {
-              el.focus();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 8 };
-            }
-            return;
-          }
-          if (recoveryField === 'recup-escrita') {
-            const el = document.querySelector(`#recup-oral-${studentId}`) as HTMLInputElement | null;
-            if (el) {
-              el.focus();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 8 };
-            }
-            return;
-          }
-          if (recoveryField === 'recup-oral') {
-            if (studentIndex < this.students.length - 1) {
-              const next = this.students[studentIndex + 1];
-              const el = document.querySelector(`#grade-input-${next.id}-1`) as HTMLInputElement | null;
-              if (el) {
-                setTimeout(() => {
-                  el.focus();
-                  el.select();
-                  el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                  this.focusedCell = { studentId: next.id, noteIndex: 1 };
-                }, 10);
-              }
-            }
-            return;
-          }
-        }
-
-        if (noteIndex === 1) nextNoteIndex = 2;
-        else if (noteIndex === 2) nextNoteIndex = 3;
-        else if (noteIndex === 3) nextNoteIndex = 4;
-        else if (noteIndex === 4) nextNoteIndex = 5;
-        else if (noteIndex === 5) nextNoteIndex = 6;
-        else if (noteIndex === 6) nextNoteIndex = 7;
-        else if (noteIndex === 7) {
-          const el = document.querySelector(`#grade-input-${studentId}-9`) as HTMLInputElement | null;
-          if (el) {
-            setTimeout(() => {
-              el.focus();
-              el.select();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 9 };
-            }, 10);
-          }
-          return;
-        }
-        else if (noteIndex === 9) {
-          const el = document.querySelector(`#grade-input-${studentId}-10`) as HTMLInputElement | null;
-          if (el) {
-            setTimeout(() => {
-              el.focus();
-              el.select();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 10 };
-            }, 10);
-          }
-          return;
-        }
-        else if (noteIndex === 10) {
-          const el = document.querySelector(`#grade-input-${studentId}-8`) as HTMLInputElement | null;
-          if (el) {
-            setTimeout(() => {
-              el.focus();
-              el.select();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 8 };
-            }, 10);
-          }
-          return;
-        }
-        else if (noteIndex === 8) {
-          const el = document.querySelector(`#recovery-jinteg-${studentId}`) as HTMLInputElement | null;
-          if (el) {
-            setTimeout(() => {
-              el.focus();
-              el.select();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 8 };
-            }, 10);
-          }
-          return;
-        }
+        const here = cellsOf(row);
+        dest = here[col + 1] ?? cellsOf(rows[rowIdx + 1])[0];
         break;
       }
-
       case 'ArrowLeft': {
-        event.preventDefault();
-
-        if (isRecoveryCell) {
-          if (recoveryField === 'recup-oral') {
-            const el = document.querySelector(`#recup-escrita-${studentId}`) as HTMLInputElement | null;
-            if (el) {
-              el.focus();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 8 };
-            }
-            return;
-          }
-          if (recoveryField === 'recup-escrita') {
-            const el = document.querySelector(`#recovery-compsocial-${studentId}`) as HTMLInputElement | null;
-            if (el) {
-              el.focus();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 8 };
-            }
-            return;
-          }
-          if (recoveryField === 'recovery-compsocial') {
-            const el = document.querySelector(`#recovery-jinteg-${studentId}`) as HTMLInputElement | null;
-            if (el) {
-              el.focus();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 8 };
-            }
-            return;
-          }
-          if (recoveryField === 'recovery-jinteg') {
-            const el = document.querySelector(`#grade-input-${studentId}-8`) as HTMLInputElement | null;
-            if (el) {
-              el.focus();
-              el.select();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 8 };
-            }
-            return;
-          }
-        }
-
-        if (noteIndex === 2) nextNoteIndex = 1;
-        else if (noteIndex === 3) nextNoteIndex = 2;
-        else if (noteIndex === 4) nextNoteIndex = 3;
-        else if (noteIndex === 5) nextNoteIndex = 4;
-        else if (noteIndex === 6) nextNoteIndex = 5;
-        else if (noteIndex === 7) nextNoteIndex = 6;
-        else if (noteIndex === 9) nextNoteIndex = 7;
-        else if (noteIndex === 10) nextNoteIndex = 9;
-        else if (noteIndex === 8) {
-          const el = document.querySelector(`#grade-input-${studentId}-10`) as HTMLInputElement | null;
-          if (el) {
-            setTimeout(() => {
-              el.focus();
-              el.select();
-              el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-              this.focusedCell = { studentId, noteIndex: 10 };
-            }, 10);
-          }
-          return;
-        }
-        else if (noteIndex === 1) {
-          if (studentIndex > 0) {
-            const prev = this.students[studentIndex - 1];
-            const el = document.querySelector(`#recup-oral-${prev.id}`) as HTMLInputElement | null;
-            if (el) {
-              setTimeout(() => {
-                el.focus();
-                el.select();
-                el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                this.focusedCell = { studentId: prev.id, noteIndex: 8 };
-              }, 10);
-            }
-          }
-          return;
+        const here = cellsOf(row);
+        if (col > 0) dest = here[col - 1];
+        else {
+          const prev = cellsOf(rows[rowIdx - 1]);
+          dest = prev[prev.length - 1];
         }
         break;
       }
-
-      case 'ArrowDown': {
-        event.preventDefault();
-        if (studentIndex < this.students.length - 1) {
-          const next = this.students[studentIndex + 1];
-          nextStudentId = next.id;
-          if (isRecoveryCell) {
-            const map: Record<string, string> = {
-              'recup-escrita': `recup-escrita-${next.id}`,
-              'recup-oral': `recup-oral-${next.id}`,
-              'recovery-jinteg': `recovery-jinteg-${next.id}`,
-              'recovery-compsocial': `recovery-compsocial-${next.id}`
-            };
-            const sel = document.querySelector(`#${map[recoveryField || '']}`) as HTMLInputElement | null;
-            if (sel) {
-              setTimeout(() => {
-                sel.focus();
-                sel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                this.focusedCell = { studentId: next.id, noteIndex: 8 };
-              }, 10);
-              return;
-            }
-            return;
-          }
-        }
-        break;
-      }
-
-      case 'ArrowUp': {
-        event.preventDefault();
-        if (studentIndex > 0) {
-          const prev = this.students[studentIndex - 1];
-          nextStudentId = prev.id;
-          if (isRecoveryCell) {
-            const map: Record<string, string> = {
-              'recup-escrita': `recup-escrita-${prev.id}`,
-              'recup-oral': `recup-oral-${prev.id}`,
-              'recovery-jinteg': `recovery-jinteg-${prev.id}`,
-              'recovery-compsocial': `recovery-compsocial-${prev.id}`
-            };
-            const sel = document.querySelector(`#${map[recoveryField || '']}`) as HTMLInputElement | null;
-            if (sel) {
-              setTimeout(() => {
-                sel.focus();
-                sel.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-                this.focusedCell = { studentId: prev.id, noteIndex: 8 };
-              }, 10);
-              return;
-            }
-            return;
-          }
-        }
-        break;
-      }
-
-      default:
-        return;
     }
 
-    if (nextStudentId || nextNoteIndex !== noteIndex) {
-      const targetId = nextStudentId || studentId;
-      setTimeout(() => {
-        const input = document.querySelector(`#grade-input-${targetId}-${nextNoteIndex}`) as HTMLInputElement | null;
-        if (input) {
-          input.focus();
-          input.select();
-          input.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-          this.focusedCell = { studentId: targetId, noteIndex: nextNoteIndex };
-        }
-      }, 10);
-    }
+    event.preventDefault();
+    if (!dest) return;
+    dest.focus();
+    dest.select();
+    dest.scrollIntoView({ block: 'nearest', inline: 'nearest' });
   }
 }

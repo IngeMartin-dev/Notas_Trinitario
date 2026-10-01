@@ -341,3 +341,9 @@
      dentro de los bloques @if de arriba a propósito, para que también
      cubra la ruta de login apenas el usuario complete su sesión. -->
 <app-consent-gate></app-consent-gate>
+
+<!-- Sin conexión con el servidor: cubre TODA la pantalla (sidebar incluida).
+     La ruta no cambia; al reconectar desaparece sola y el usuario queda donde estaba. -->
+@if (connection.offline()) {
+  <app-connection-lost></app-connection-lost>
+}

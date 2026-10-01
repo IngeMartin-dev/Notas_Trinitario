@@ -638,12 +638,42 @@
 
 .plan-content-fullscreen .plan-text {
   font-family: 'Segoe UI', Arial, sans-serif;
-  line-height: 1.75;
+  line-height: 1.85;
   color: #1a202c;
-  font-size: 15px;
+  font-size: 16px;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
+}
+
+/* Estilo "lectura de texto": párrafos cortos con respiración ortográfica
+   generosa entre ellos. */
+.plan-content-fullscreen .plan-text p {
+  margin: 0 0 18px 0;
+  line-height: 1.85;
+  text-align: justify;
+  hyphens: auto;
+}
+.plan-content-fullscreen .plan-text p:empty {
+  margin: 0 0 10px 0;
+  height: 6px;
+}
+.plan-content-fullscreen .plan-text h2 {
+  margin: 38px 0 18px 0;
+  line-height: 1.3;
+}
+.plan-content-fullscreen .plan-text h3 {
+  margin: 28px 0 14px 0;
+  line-height: 1.3;
+}
+.plan-content-fullscreen .plan-text h2:first-child,
+.plan-content-fullscreen .plan-text h2:first-of-type {
+  margin-top: 8px;
+}
+.plan-content-fullscreen .plan-text ul li,
+.plan-content-fullscreen .plan-text ol li {
+  margin-bottom: 10px;
+  line-height: 1.7;
 }
 
 .plan-content-fullscreen .plan-text .paragraph-block {
@@ -961,30 +991,43 @@
   width: 100%;
   border-collapse: collapse;
   margin: 25px 0;
-  font-size: 14px;
+  font-size: 15px;
   border: 2px solid #3b82f6;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(37, 99, 235, 0.15);
+  /* Layout fijo: respeta los anchos que pongamos en <col> o en <th>.
+     Sin esto, las celdas se reparten por contenido y las fórmulas grandes
+     aplastan a las de texto corto. */
+  table-layout: fixed;
+  word-wrap: break-word;
+  overflow-wrap: anywhere;
 }
 
 .plan-content-fullscreen .plan-text .ai-table th {
   background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #1d4ed8 100%);
   color: white;
-  padding: 16px 14px;
+  padding: 18px 16px;
   text-align: left;
   font-weight: 700;
   border: 1px solid #1e3a8a;
   text-transform: uppercase;
   font-size: 13px;
   letter-spacing: 0.8px;
+  /* Ancho automático por defecto si la tabla no define <col> */
+  white-space: normal;
 }
 
 .plan-content-fullscreen .plan-text .ai-table td {
-  padding: 16px 14px;
+  padding: 18px 16px;
   border: 1px solid #e2e8f0;
   background: white;
   transition: all 0.2s;
+  /* Antes: max-width: 300px (estrechaba la tabla cuando había 4+ columnas).
+     Ahora dejamos que la tabla use el 100% del contenedor y los anchos se
+     controlan con <col> o con la primera fila de <th>. */
+  vertical-align: top;
+  line-height: 1.55;
 }
 
 .plan-content-fullscreen .plan-text .ai-table tr:nth-child(even) td {
@@ -999,8 +1042,58 @@
   font-size: 15px;
 }
 
-.plan-content-fullscreen .ai-table td {
-  max-width: 300px;
+/* Anchos por columna cuando la tabla tiene 4 columnas (típico de
+   "Evaluación Formativa"): # (compacto) + Pregunta + Clave + Indicador.
+   Esto evita que KaTeX (que tiende a ancho natural) desbalancee la tabla. */
+.plan-content-fullscreen .plan-text .ai-table col.c-num,
+.plan-content-fullscreen .plan-text .ai-table th:nth-child(1),
+.plan-content-fullscreen .plan-text .ai-table td:nth-child(1) {
+  width: 6%;
+  text-align: center;
+}
+.plan-content-fullscreen .plan-text .ai-table col.c-q,
+.plan-content-fullscreen .plan-text .ai-table th:nth-child(2),
+.plan-content-fullscreen .plan-text .ai-table td:nth-child(2) {
+  width: 34%;
+}
+.plan-content-fullscreen .plan-text .ai-table col.c-a,
+.plan-content-fullscreen .plan-text .ai-table th:nth-child(3),
+.plan-content-fullscreen .plan-text .ai-table td:nth-child(3) {
+  width: 30%;
+}
+.plan-content-fullscreen .plan-text .ai-table col.c-ind,
+.plan-content-fullscreen .plan-text .ai-table th:nth-child(4),
+.plan-content-fullscreen .plan-text .ai-table td:nth-child(4) {
+  width: 30%;
+}
+
+/* Tabla de 3 columnas (típico de "Recursos de Estudio"): balance 30/35/35 */
+.plan-content-fullscreen .plan-text .ai-table:not(.has-4-cols) th:nth-child(1),
+.plan-content-fullscreen .plan-text .ai-table:not(.has-4-cols) td:nth-child(1) {
+  width: 30%;
+}
+.plan-content-fullscreen .plan-text .ai-table:not(.has-4-cols) th:nth-child(2),
+.plan-content-fullscreen .plan-text .ai-table:not(.has-4-cols) td:nth-child(2) {
+  width: 35%;
+}
+.plan-content-fullscreen .plan-text .ai-table:not(.has-4-cols) th:nth-child(3),
+.plan-content-fullscreen .plan-text .ai-table:not(.has-4-cols) td:nth-child(3) {
+  width: 35%;
+}
+
+/* KaTeX dentro de celdas: debe respirar. Forzar display inline para que
+   las fracciones NO rompan a varias líneas ni crezcan demasiado. */
+.plan-content-fullscreen .plan-text .ai-table .katex {
+  font-size: 1.35em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.plan-content-fullscreen .plan-text .ai-table .katex-display {
+  margin: 0;
+  display: inline !important;
+}
+.plan-content-fullscreen .plan-text .ai-table .katex-display > .katex {
+  display: inline-block;
 }
 
 .plan-meta {
@@ -1366,4 +1459,60 @@ details[open] > summary {
   .placeholder { color: var(--text-3); }
 
   .spinner { color: var(--text-3); }
+}
+/* ── Plan de estudio en modo oscuro ───────────────────────────────────
+   El contenido generado por la IA trae fondos claros "en línea" (hojas
+   blancas, tarjetas de cada día) mientras el texto heredaba el color claro
+   del tema: quedaba texto claro sobre blanco. Se oscurece todo el contenido
+   y se fuerzan colores legibles (!important para ganarle a los estilos en línea). */
+:host-context([data-theme="dark"]) {
+  .plan-text,
+  .plan-text div, .plan-text section, .plan-text article, .plan-text aside,
+  .plan-text p, .plan-text li, .plan-text span, .plan-text td, .plan-text blockquote,
+  .plan-text h1, .plan-text h2, .plan-text h3, .plan-text h4, .plan-text h5, .plan-text h6,
+  .plan-text strong, .plan-text b, .plan-text em, .plan-text i, .plan-text label {
+    color: #e5e7eb !important;
+  }
+  .plan-text div, .plan-text section, .plan-text article, .plan-text aside,
+  .plan-text blockquote, .plan-text ul, .plan-text ol {
+    background: transparent !important;
+    background-color: transparent !important;
+    border-color: #334155 !important;
+  }
+  /* Tarjetas / hojas: fondo oscuro suave para distinguirlas */
+  .plan-text div[style*="border"], .plan-text section, .plan-text article, .plan-text .day-card, .plan-text .card {
+    background-color: #1e293b !important;
+  }
+  .plan-text h1, .plan-text h2, .plan-text h3 { color: #f8fafc !important; }
+  .plan-text strong, .plan-text b { color: #93c5fd !important; }
+  .plan-text a { color: #7dd3fc !important; }
+  .plan-text li::marker { color: #60a5fa; }
+  .plan-text ol li, .plan-text .ai-list li, .plan-text ul li { background: #1e293b !important; border-color: #334155 !important; }
+
+  /* Tablas del plan */
+  .plan-text table, .plan-text .ai-table { border-color: #3b82f6 !important; }
+  .plan-text .ai-table th, .plan-text table th { color: #fff !important; background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #1d4ed8 100%) !important; }
+  .plan-text .ai-table td, .plan-text table td { background: #1e293b !important; border-color: #334155 !important; color: #e5e7eb !important; }
+  .plan-text .ai-table tr:nth-child(2n) td, .plan-text table tr:nth-child(2n) td { background: #172033 !important; }
+  .plan-text .ai-table tr:hover td { background: #1e3a5f !important; }
+
+  /* Encabezados con degradado: se mantiene texto blanco / azul legible */
+  .plan-text .ai-h2 { color: #fff !important; }
+  .plan-text .ai-h3 { background: rgba(37, 99, 235, 0.25) !important; color: #bfdbfe !important; }
+  .plan-text .ai-h4 { background: #1e293b !important; color: #cbd5e1 !important; }
+
+  /* Videos */
+  .plan-text .video-card { background: #1e293b !important; border-color: #334155 !important; }
+  .plan-text .video-content .video-link { color: #7dd3fc !important; }
+  .plan-text .video-source { background: #0f172a !important; color: #94a3b8 !important; }
+  .plan-text .no-videos-message { background: #1e293b !important; color: #94a3b8 !important; border-color: #475569 !important; }
+  .plan-text .video-unavailable { background: rgba(239, 68, 68, 0.15) !important; border-color: rgba(239, 68, 68, 0.4) !important; }
+  .plan-text .video-unavailable, .plan-text .video-unavailable-title, .plan-text .video-unavailable-message,
+  .plan-text .video-unavailable-url { color: #fca5a5 !important; }
+
+  /* Fórmulas (KaTeX) heredan el color del texto */
+  .plan-text .katex, .plan-text .katex * { color: #e5e7eb !important; }
+
+  /* Título del plan y contenedor */
+  .plan-content-fullscreen { background: #0f172a; border-color: #1e293b; box-shadow: none; }
 }

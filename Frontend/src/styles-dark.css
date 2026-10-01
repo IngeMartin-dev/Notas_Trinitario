@@ -1034,18 +1034,45 @@
   color: var(--text-1) !important;
 }
 
-/* Excepciones: encabezados con fondo de acento (deben ser oscuros) */
-[data-theme="dark"] .fullscreen-modal-content .section-title,
-[data-theme="dark"] .fullscreen-modal-content .ai-h2,
-[data-theme="dark"] .fullscreen-modal-content .ai-h3,
+/* Encabezados dentro del plan: en modo oscuro el gradiente azul claro
+   de la regla base queda muy apagado, así que los "h2" y "section-title"
+   se ven casi invisibles (texto oscuro sobre fondo azul oscuro).
+   Les damos un fondo oscuro con texto blanco brillante para que el
+   contraste sea legible, sin tocar la regla global de "todo el modal en
+   color claro". */
 [data-theme="dark"] .fullscreen-modal-content h2,
 [data-theme="dark"] .fullscreen-modal-content h3,
-[data-theme="dark"] .plan-content-fullscreen .section-title,
-[data-theme="dark"] .plan-content-fullscreen .ai-h2,
-[data-theme="dark"] .plan-content-fullscreen .ai-h3,
 [data-theme="dark"] .plan-content-fullscreen h2,
-[data-theme="dark"] .plan-content-fullscreen h3 {
-  color: #04141a !important;
+[data-theme="dark"] .plan-content-fullscreen h3,
+[data-theme="dark"] .fullscreen-modal-content .section-title,
+[data-theme="dark"] .fullscreen-modal-content .subsection-title,
+[data-theme="dark"] .plan-content-fullscreen .section-title,
+[data-theme="dark"] .plan-content-fullscreen .subsection-title {
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%) !important;
+  color: #ffffff !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  border: 1px solid rgba(56, 189, 248, 0.35) !important;
+}
+
+/* Subsecciones (h3) en el plan: fondo intermedio, texto claro. */
+[data-theme="dark"] .fullscreen-modal-content h3,
+[data-theme="dark"] .plan-content-fullscreen h3,
+[data-theme="dark"] .fullscreen-modal-content .subsection-title,
+[data-theme="dark"] .plan-content-fullscreen .subsection-title {
+  background: linear-gradient(135deg, #1c2740 0%, #1e3a5f 100%) !important;
+  color: var(--text-1) !important;
+  border-left: 5px solid var(--brand) !important;
+  text-shadow: none;
+}
+
+/* Forzar que los párrafos dentro del plan se vean claros en dark mode.
+   La regla general ya pone color: var(--text-1) !important, pero
+   algunos párrafos heredan un color casi negro por especificidad.
+   Esto lo refuerza. */
+[data-theme="dark"] .plan-content-fullscreen p,
+[data-theme="dark"] .plan-content-fullscreen li,
+[data-theme="dark"] .plan-content-fullscreen span {
+  color: var(--text-1) !important;
 }
 
 [data-theme="dark"] .fullscreen-modal-content a,
@@ -1082,6 +1109,25 @@
 }
 
 [data-theme="dark"] .plan-content-fullscreen table tr:nth-child(even) td {
+  background: var(--surface) !important;
+}
+
+/* Refuerzo específico para tablas con clase .ai-table: que la cabecera
+   tenga el gradiente azul (igual que en modo claro) y los textos sean
+   legibles. Las reglas anteriores genéricas ya funcionaban, pero este
+   bloque asegura que el th de .ai-table NO se pinte en color oscuro
+   (forzamos blanco). */
+[data-theme="dark"] .plan-content-fullscreen .ai-table th,
+[data-theme="dark"] .plan-content-fullscreen .ai-table th * {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #1e40af 0%, #2563eb 50%, #1d4ed8 100%) !important;
+}
+[data-theme="dark"] .plan-content-fullscreen .ai-table td,
+[data-theme="dark"] .plan-content-fullscreen .ai-table td * {
+  color: var(--text-1) !important;
+}
+[data-theme="dark"] .plan-content-fullscreen .ai-table tr:nth-child(even) td,
+[data-theme="dark"] .plan-content-fullscreen .ai-table tr:nth-child(even) td * {
   background: var(--surface) !important;
 }
 

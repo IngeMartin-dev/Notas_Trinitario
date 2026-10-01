@@ -18,10 +18,12 @@ import { Dialog } from './dialog/dialog';
 import { SchoolYearService } from './services/school-year.service';
 import { ConsentGate } from './legal/consent-gate/consent-gate';
 import { API_BASE_URL } from './config/api-base';
+import { ConnectionService } from './services/connection.service';
+import { ConnectionLost } from './connection-lost/connection-lost';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet, RouterModule, MessagesDropdownComponent, NotificationDetailsComponent, GenerationNotifications, Dialog, ConsentGate],
+  imports: [RouterOutlet, RouterModule, MessagesDropdownComponent, NotificationDetailsComponent, GenerationNotifications, Dialog, ConsentGate, ConnectionLost],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
@@ -61,6 +63,7 @@ export class App implements OnInit, OnDestroy {
   private realtimeService = inject(GlobalRealtimeService);
   private generationService = inject(GenerationService);
   private schoolYearService = inject(SchoolYearService);
+  connection = inject(ConnectionService);
 
   constructor() {
     // El ThemeService aplica el tema guardado automáticamente al iniciar.

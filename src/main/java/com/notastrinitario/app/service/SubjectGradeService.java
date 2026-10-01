@@ -222,8 +222,8 @@ public class SubjectGradeService {
      * "act") y cada columna que agrega el profesor (Quiz, Taller...) tiene el
      * suyo (1-100), guardados como "pct" dentro de columnsJson. Mismo calculo que la pantalla
      * de Calificaciones:
-     *   80% = promedio ponderado de las columnas con nota x 0.8
-     *   20% = Eval.Period x 0.2
+     *   actividades = promedio ponderado x (100 - %Eval.Period) / 100
+     *   Eval.Period = nota x %Eval.Period / 100   (20% por defecto, editable)
      * Devuelve null si ninguna columna tiene "pct" (se usa el modo anterior).
      */
     private Map<String, Object> calculatePerColumnWeightedGrade(List<SubjectGrade> grades, String columnsJson) {
@@ -235,6 +235,7 @@ public class SubjectGradeService {
         //   sin kind  : formato anterior, cada columna con su propio pct
         Map<String, Double> catPct = new HashMap<>();     // idCategoria -> pct
         Map<String, String> colToCat = new HashMap<>();   // nombreNota(minusculas) -> idCategoria
+        double evalPct = 20.0;                            // % de Eval.Period (entrada "eval")
         java.util.regex.Matcher objectMatcher =
                 java.util.regex.Pattern.compile("\\{[^{}]*\\}").matcher(columnsJson);
         while (objectMatcher.find()) {
@@ -248,7 +249,9 @@ public class SubjectGradeService {
                     .compile("\"pct\"\\s*:\\s*(\\d+(?:\\.\\d+)?)").matcher(obj);
             if (pm.find()) pct = Double.parseDouble(pm.group(1));
 
-            if ("col".equals(kind)) {
+            if ("eval".equals(id)) {
+                if (pct != null) evalPct = Math.max(0.0, Math.min(100.0, pct));
+            } else if ("col".equals(kind)) {
                 if (name != null && cat != null) colToCat.put(name.toLowerCase(), cat);
             } else if ("cat".equals(kind) || "act".equals(id)) {
                 if (id != null && pct != null && pct > 0) catPct.put(id, pct);
@@ -258,7 +261,13 @@ public class SubjectGradeService {
                 colToCat.put(name.toLowerCase(), key);
             }
         }
-        if (catPct.isEmpty()) return null;
+        // Sin porcentajes de actividades: si Eval.Period sigue en 20% se usa la
+        // formula de siempre; si cambio, se promedian todas las notas por igual.
+        boolean simple = catPct.isEmpty();
+        if (simple) {
+            if (evalPct == 20.0) return null;
+            catPct.put("__todas__", 1.0);
+        }
 
         // Por categoria: promedio de sus notas; luego se pondera con su porcentaje.
         Map<String, double[]> acumulado = new HashMap<>(); // idCategoria -> {suma, cantidad}
@@ -275,8 +284,9 @@ public class SubjectGradeService {
             }
             if (g.getGradeName() == null) continue;
             String nombre = g.getGradeName().toLowerCase();
-            String catId = (catPct.containsKey("act") && nombre.matches("act0?[1-7]"))
-                    ? "act" : colToCat.get(nombre);
+            String catId = simple ? "__todas__"
+                    : (catPct.containsKey("act") && nombre.matches("act0?[1-7]"))
+                        ? "act" : colToCat.get(nombre);
             if (catId == null || !catPct.containsKey(catId)) continue;
             double[] acc = acumulado.computeIfAbsent(catId, k -> new double[2]);
             acc[0] += g.getGradeValue();
@@ -291,8 +301,8 @@ public class SubjectGradeService {
         }
 
         double promedio = pesos > 0 ? suma / pesos : 0.0;
-        double p80 = promedio * 0.8;
-        double p20 = (evaluation != null ? evaluation : 0.0) * 0.2;
+        double p80 = promedio * ((100.0 - evalPct) / 100.0);
+        double p20 = (evaluation != null ? evaluation : 0.0) * (evalPct / 100.0);
         double finalGrade = Math.round((p80 + p20) * 100.0) / 100.0;
 
         Map<String, Object> result = new HashMap<>();

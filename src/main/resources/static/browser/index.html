@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es" data-beasties-container>
+
+<head><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <meta charset="utf-8">
+  <title>Notas Trinitario</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Sistema de Gestión de Calificaciones - Notas Trinitario">
+   <style>@font-face{font-family:'Material Icons';font-style:normal;font-weight:400;src:url(https://fonts.gstatic.com/s/materialicons/v145/flUhRq6tzZclQEJ-Vdg-IuiaDsNc.woff2) format('woff2');}.material-icons{font-family:'Material Icons';font-weight:normal;font-style:normal;font-size:24px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;word-wrap:normal;direction:ltr;-webkit-font-feature-settings:'liga';-webkit-font-smoothing:antialiased;}</style>
+   <!-- KaTeX CSS -->
+   <link href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css" rel="stylesheet">
+   <!-- KaTeX Core (required for auto-render) -->
+   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+   <!-- KaTeX Auto-render extension -->
+   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"></script>
+<style>:root{--brand:#1b6aeb;--brand-600:#1559c9;--brand-500:#257bf3;--brand-400:#3d82f0;--brand-50:#eaf2fe;--brand-100:#d6e6fd;--accent:#3f51b5;--accent-600:#2c3e9e;--accent-50:#eef0fb;--pink:#ff4081;--bg:#eef2f7;--surface:#ffffff;--surface-2:#f7f9fc;--border:#e2e8f0;--border-strong:#cbd5e1;--text-1:#0f172a;--text-2:#334155;--text-3:#64748b;--text-4:#94a3b8;--success:#0f7a37;--success-bg:#e7f6ec;--warning:#a85703;--warning-bg:#fdf2e3;--danger:#dc2626;--danger-bg:#fdeaea;--info:#1b6aeb;--info-bg:#eaf2fe;--font:"Roboto", "Segoe UI", "Helvetica Neue", system-ui, sans-serif;--r-sm:8px;--r-md:12px;--r-lg:16px;--r-pill:999px;--shadow-xs:0 1px 2px rgba(15, 23, 42, .06);--shadow-sm:0 1px 3px rgba(15, 23, 42, .08), 0 1px 2px rgba(15, 23, 42, .04);--shadow-md:0 4px 12px rgba(15, 23, 42, .08);--shadow-lg:0 12px 32px rgba(15, 23, 42, .12);--sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;--sidebar-w:248px;--sidebar-collapsed-w:72px;--topbar-h:64px}*{margin:0;padding:0;box-sizing:border-box}html,body{height:100%}body{font-family:var(--font);background-color:var(--bg);color:var(--text-1);line-height:1.55;font-size:15px;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;-webkit-tap-highlight-color:transparent;touch-action:manipulation}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}body{margin:0!important;padding:0!important;background:#fff!important;font-size:12pt!important;line-height:1.3!important}body>*:not(.printable-area):not(.print-only){display:none!important}}</style><link rel="stylesheet" href="styles-SBT5EIMQ.css" media="print" onload="this.media='all'"><noscript><link rel="stylesheet" href="styles-SBT5EIMQ.css"></noscript></head>
+
+<body>
+  <app-root></app-root>
+
+  <!-- Loading animation -->
+  <div id="loading" class="loading-overlay">
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Add this style for the loading animation -->
+  <style>
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(255, 255, 255, 0.9);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+      transition: opacity 0.3s ease-out;
+    }
+
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 5px solid #f3f3f3;
+      border-top: 5px solid #3f51b5;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loading-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+  </style>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const loadingElement = document.getElementById('loading');
+      window.addEventListener('appReady', () => {
+        loadingElement.classList.add('hidden');
+        setTimeout(() => {
+          loadingElement.style.display = 'none';
+        }, 300);
+      });
+    });
+  </script>
+<link rel="modulepreload" href="chunk-D4JJSVVQ.js"><link rel="modulepreload" href="chunk-JCKTTEO2.js"><link rel="modulepreload" href="chunk-FGE3FVPE.js"><link rel="modulepreload" href="chunk-67VWGS2T.js"><link rel="modulepreload" href="chunk-SXAQLX3M.js"><link rel="modulepreload" href="chunk-LAYQU4MZ.js"><link rel="modulepreload" href="chunk-2ZJ2DKKX.js"><link rel="modulepreload" href="chunk-ZNZXUCOZ.js"><link rel="modulepreload" href="chunk-YCATI6MP.js"><link rel="modulepreload" href="chunk-JIMTX3PD.js"><script src="polyfills-5CFQRCPP.js" type="module"></script><script src="main-IPYCVYYF.js" type="module"></script></body>
+</html>

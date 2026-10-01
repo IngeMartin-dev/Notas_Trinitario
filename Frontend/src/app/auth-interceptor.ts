@@ -2,21 +2,23 @@ import { HttpInterceptorFn, HttpErrorResponse, HttpEvent } from '@angular/common
 import { inject } from '@angular/core';
 import { catchError, switchMap, throwError, of, Observable, EMPTY } from 'rxjs';
 import { AuthService } from './services/auth.service';
-import { Router } from '@angular/router';
+import { ConnectionService } from './services/connection.service';
 
 let isRefreshing = false;
 let refreshTokenSubject: any = null;
 
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const authService = inject(AuthService);
-  const router = inject(Router);
+  const connection = inject(ConnectionService);
   const token = authService.getToken();
 
   const handleConnectionError = (error: HttpErrorResponse): Observable<HttpEvent<any>> => {
     // status 0 = no se pudo conectar con el servidor
     // Se excluye /api/health para que el sondeo de reconexión propague el error
-    if (error.status === 0 && !req.url.includes('/not-found') && !req.url.includes('/api/health')) {
-      router.navigate(['/not-found'], { queryParams: { reason: 'connection' } });
+    if (error.status === 0 && !req.url.includes('/api/health')) {
+      // Pantalla completa "Sin conexión" (sin cambiar de ruta); al reconectar
+      // se vuelve solo a la vista en la que estaba el usuario.
+      connection.markOffline();
       return EMPTY;
     }
     return throwError(() => error);

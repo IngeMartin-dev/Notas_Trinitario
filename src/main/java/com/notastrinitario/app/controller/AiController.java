@@ -9,10 +9,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.SocketTimeoutException;
@@ -201,17 +199,24 @@ public class AiController {
     public ResponseEntity<StreamingResponseBody> generateStudyPlanStream(@RequestBody Map<String, Object> request) {
         final String prompt = request.get("prompt") != null ? request.get("prompt").toString() : "";
         final double temperature = request.get("temperature") != null
-                ? Double.parseDouble(request.get("temperature").toString()) : 0.4;
+                ? Double.parseDouble(request.get("temperature").toString()) : 0.25;
         final int maxTokens = request.get("max_tokens") != null
-                ? Integer.parseInt(request.get("max_tokens").toString()) : 4096;
+                ? Integer.parseInt(request.get("max_tokens").toString()) : 12000;
 
         final String jsonPayload = buildRequestBody(prompt, true, temperature, maxTokens);
 
         StreamingResponseBody stream = out -> forwardStream(jsonPayload, out);
 
         return ResponseEntity.ok()
+                // charset explícito: ayuda al navegador a no confundir el
+                // chunked encoding con un body "incompleto" por culpa de la
+                // decodificación.
+                .header("Content-Type", "text/event-stream;charset=UTF-8")
                 .header("Cache-Control", "no-cache, no-transform")
                 .header("X-Accel-Buffering", "no")
+                // Indica al cliente que NO mantenga la conexión abierta
+                // tras el último chunk (cierre limpio del chunked encoding).
+                .header("Connection", "close")
                 .body(stream);
     }
 
@@ -230,7 +235,7 @@ public class AiController {
                     + jsonStr("Eres un asistente experto en generar planes de estudio profesionales.") + "},"
                     + "{\"role\":\"user\",\"content\":" + jsonStr(partialPlan) + "},"
                     + "{\"role\":\"user\",\"content\":" + jsonStr(followUp) + "}]"
-                    + ",\"temperature\":0.3,\"max_tokens\":12000,\"stream\":false}";
+                    + ",\"temperature\":0.25,\"max_tokens\":16000,\"stream\":false}";
 
             String content = postNonStreaming(body);
             response.put("content", content != null ? content : "");
@@ -243,11 +248,8 @@ public class AiController {
     }
 
     /** Tiempo máximo (ms) sin recibir NINGÚN dato nuevo de Mistral durante el
-     *  streaming. Antes estaba en 0 (infinito): si Mistral se colgaba, la
-     *  petición se quedaba esperando para siempre y en el frontend parecía
-     *  que "no generaba nunca". Con esto, si no llega nada en ese tiempo se
-     *  corta y se informa el error al usuario en vez de dejarlo esperando. */
-        private static final int STREAM_READ_TIMEOUT_MS = 60000;
+     *  streaming. Aumentado a 5 min para planes complejos con max_tokens=8192. */
+        private static final int STREAM_READ_TIMEOUT_MS = 300000;
 
     /** Escribe un evento SSE de error, en el mismo formato que ya sabe leer
      *  el frontend ({"error": "..."}). Nunca lanza excepción. */
@@ -260,8 +262,24 @@ public class AiController {
         }
     }
 
-    /** Reenvía el stream SSE de Mistral (formato OpenAI) al cliente, línea
-     *  por línea, tal cual. El frontend ya sabe parsearlo.
+    /** Reenvía el stream SSE de Mistral (formato OpenAI) al cliente, **chunk
+     *  por chunk de bytes**, sin parsear por líneas. Esto es crítico: antes
+     *  usábamos BufferedReader.readLine() y, si Mistral cerraba el stream
+     *  sin un '\n' final, el navegador recibía un Transfer-Encoding: chunked
+     *  incompleto y mostraba:
+     *      ERR_INCOMPLETE_CHUNKED_ENCODING
+     *  Además, reenviar línea por línea forzaba a que el último evento se
+     *  quedara en el buffer interno y nunca llegara al frontend.
+     *
+     *  Ahora:
+     *   - Leemos bloques de bytes del InputStream de Mistral (NO líneas).
+     *   - Cada bloque se escribe + flush() inmediato al OutputStream del
+     *     cliente, para que Tomcat pueda emitir los chunks HTTP al navegador
+     *     sin esperar a llenar un buffer grande.
+     *   - Al terminar (EOF o error) SIEMPRE escribimos
+     *         data: [DONE]\n\n
+     *     seguido de flush(), y dejamos que el finally cierre la conexión.
+     *     Esto cierra el chunked encoding de forma limpia.
      *
      *  IMPORTANTE: cualquier error (API key faltante, timeout, error HTTP de
      *  Mistral, caída de red, etc.) SIEMPRE se traduce en un evento SSE
@@ -271,6 +289,7 @@ public class AiController {
     @SuppressWarnings("deprecation")
     private void forwardStream(String jsonPayload, OutputStream out) throws IOException {
         HttpURLConnection conn = null;
+        boolean streamOpened = false;
         try {
             final String key;
             try {
@@ -278,6 +297,7 @@ public class AiController {
             } catch (IllegalStateException e) {
                 log.warn("[IA] {}", e.getMessage());
                 writeSseError(out, e.getMessage());
+                writeDoneMarker(out);
                 return;
             }
 
@@ -288,8 +308,13 @@ public class AiController {
             conn.setRequestProperty("Content-Type", "application/json");
             conn.setRequestProperty("Authorization", "Bearer " + key);
             conn.setRequestProperty("Accept", "text/event-stream");
-            conn.setConnectTimeout(30000);
+            // Importante: NO fijar Content-Length en la request al cliente.
+            // El cliente (Tomcat) ya calcula Transfer-Encoding: chunked.
+            conn.setConnectTimeout(60000);
             conn.setReadTimeout(STREAM_READ_TIMEOUT_MS);
+            // Buffer interno pequeño para que los chunks pequeños de Mistral
+            // lleguen rápido al navegador (evita esperas por "rellenar buffer").
+            conn.setChunkedStreamingMode(0);
 
             try (OutputStream os = conn.getOutputStream()) {
                 os.write(jsonPayload.getBytes(StandardCharsets.UTF_8));
@@ -316,27 +341,69 @@ public class AiController {
 
                 log.warn("[IA] Error de Mistral HTTP {}: {}", status, body.isBlank() ? userMsg : body);
                 writeSseError(out, userMsg);
+                writeDoneMarker(out);
                 return;
             }
 
-            try (InputStream in = conn.getInputStream();
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    out.write((line + "\n").getBytes(StandardCharsets.UTF_8));
-                    out.flush();
+            // ===== Lectura por CHUNKS de bytes (NO por líneas) =====
+            // 8 KB es un tamaño seguro: suficientemente pequeño para sentir el
+            // stream "en vivo", suficientemente grande para no fragmentar
+            // cada token. Si llega un chunk más pequeño, lo manejamos igual.
+            byte[] buf = new byte[8192];
+            int read;
+            int totalBytesForwarded = 0;
+            try (InputStream in = conn.getInputStream()) {
+                while ((read = in.read(buf)) != -1) {
+                    if (read > 0) {
+                        out.write(buf, 0, read);
+                        out.flush();
+                        totalBytesForwarded += read;
+                    }
                 }
+            }
+            streamOpened = (totalBytesForwarded > 0);
+
+            // Cierre limpio del stream: [DONE] + flush final.
+            if (streamOpened) {
+                writeDoneMarker(out);
+            } else {
+                // Mistral cerró sin mandar nada: antes quedaba vacío sin
+                // explicación. Ahora avisamos al usuario.
+                writeSseError(out, "La IA no devolvió contenido. Por favor intenta generar el plan de nuevo.");
+                writeDoneMarker(out);
             }
         } catch (SocketTimeoutException e) {
             log.warn("[IA] Timeout esperando respuesta de Mistral (más de {} ms sin datos).", STREAM_READ_TIMEOUT_MS);
             writeSseError(out, "La IA está tardando demasiado en responder. Por favor intenta de nuevo en unos minutos.");
+            writeDoneMarker(out);
         } catch (Exception e) {
             log.error("[IA] Error inesperado generando el plan de estudio", e);
             writeSseError(out, "Ocurrió un error inesperado generando el plan. Intenta de nuevo.");
+            writeDoneMarker(out);
         } finally {
             if (conn != null) {
                 conn.disconnect();
             }
+            // NO cerramos 'out' explícitamente: lo maneja Spring
+            // StreamingResponseBody. Pero sí un último flush defensivo por si
+            // quedó algo en el buffer del servlet.
+            try {
+                out.flush();
+            } catch (IOException ignored) {
+                // El cliente ya pudo haber cerrado la conexión.
+            }
+        }
+    }
+
+    /** Escribe el marcador final del stream SSE ("data: [DONE]") y hace
+     *  flush. Llamar SIEMPRE antes de salir de forwardStream para que el
+     *  navegador cierre el chunked encoding sin error. */
+    private void writeDoneMarker(OutputStream out) {
+        try {
+            out.write("data: [DONE]\n\n".getBytes(StandardCharsets.UTF_8));
+            out.flush();
+        } catch (IOException ignored) {
+            // El cliente ya pudo haber cerrado la conexión.
         }
     }
 

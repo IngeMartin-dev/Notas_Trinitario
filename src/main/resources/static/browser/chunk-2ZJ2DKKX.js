@@ -1,0 +1,1 @@
+var t="http://localhost:8080";function c(){if(typeof window>"u")return t;let{hostname:o,protocol:n}=window.location;return o==="localhost"||o==="127.0.0.1"?t:`${n}//${o}:8080`}var r=c(),e=t;export{r as a,e as b};

@@ -105,7 +105,7 @@
               <div class="pct-wrap">
                 <button type="button" class="pct-open-btn" [class.active]="showPctPanel" (click)="togglePctPanel()">
                   Porcentajes
-                  @if (weightedMode) { <span class="pct-open-badge">{{ totalPctSum }}%</span> }
+                  @if (weightedMode || pctOver) { <span class="pct-open-badge" [class.pct-open-badge-over]="pctOver">{{ totalPctSum }}%</span> }
                 </button>
 
                 @if (showPctPanel) {
@@ -121,6 +121,11 @@
                         <input type="text" inputmode="numeric" class="pct-input" name="act-pct" [value]="actPct ?? ''" (input)="onActPctInput($event)" placeholder="%" maxlength="3" autocomplete="off" aria-label="Porcentaje del grupo" />
                         <span class="pct-row-note">todas las {{ actName }} juntas (1 a 7)</span>
                       </div>
+                      <div class="pct-row-item">
+                        <span class="pct-name-fixed">Eval.Period</span>
+                        <input type="text" inputmode="numeric" class="pct-input" name="eval-pct" [value]="evalPct" (input)="onEvalPctInput($event)" (blur)="onEvalPctBlur($event)" maxlength="3" autocomplete="off" aria-label="Porcentaje de Eval.Period" />
+                        <span class="pct-row-note">las actividades valen el {{ activitiesShare }}% restante</span>
+                      </div>
                       @for (cat of categories; track cat.id) {
                         <div class="pct-row-item">
                           <input type="text" class="pct-name-input" [name]="'name-' + cat.id" [value]="cat.name" (input)="onCategoryNameInput(cat, $event)" (blur)="onCategoryNameBlur(cat, $event)" maxlength="20" autocomplete="off" [attr.aria-label]="'Nombre ' + cat.name" />
@@ -129,6 +134,13 @@
                         </div>
                       }
                     </div>
+
+                    @if (pctOver) {
+                      <p class="pct-error" role="alert">
+                        ⚠ Los porcentajes suman {{ totalPctSum }}% y no pueden pasar de 100%.
+                        No se guardarán hasta que los corrijas.
+                      </p>
+                    }
 
                     <p class="pct-hint">
                       @if (!weightedMode) { Escribe un porcentaje (1-100) en cada nombre. Sin porcentajes se usa el promedio normal. }
@@ -191,9 +203,9 @@
                     }
                     <th id="th-auto-eval" class="calc-col">Auto.Eval</th>
                     <th id="th-prom-parc" class="calc-col">Prom.Parc</th>
-                    <th class="calc-col">80%</th>
+                    <th class="calc-col">{{ activitiesShare }}%</th>
                     <th id="th-eval-period" class="calc-col">Eval.Period</th>
-<th class="calc-col">20%</th>
+<th class="calc-col">{{ evalPct }}%</th>
                      <th class="def-col">N.FINAL</th>
                     <th id="th-jinteg" class="recovery-col">J.INTEG</th>
                     <th id="th-comp-social" class="recovery-col">COMP SOCIAL</th>
@@ -316,60 +328,82 @@
 <!-- AI Study Plan Modal -->
 @if (showStudyPlanModal) {
   <div class="fullscreen-modal-overlay" (click)="closeStudyPlanModal()">
-    <div class="fullscreen-modal-content" (click)="$event.stopPropagation()">
-      <div class="modal-header">
-        <h2>📚 Plan de Estudio</h2>
-        <button class="close-btn" (click)="closeStudyPlanModal()">×</button>
-      </div>
+    <div class="fullscreen-modal-content spm" (click)="$event.stopPropagation()" role="dialog" aria-modal="true" aria-labelledby="spm-title">
 
-      <div class="modal-body-fullscreen">
-         @if (selectedStudentForPlan) {
-           <div class="student-info">
-             <p><strong>Estudiante:</strong> {{ selectedStudentForPlan.surname }} {{ selectedStudentForPlan.name }}</p>
-             <p><strong>Grado:</strong> {{ selectedGrade }} | <strong>Período:</strong> {{ selectedPeriod }}</p>
-             <p><strong>Nota Actual:</strong> <span class="grade-badge" [class]="getFinalColor(selectedStudentForPlan.id)">{{ getFinalWithRecovery(selectedStudentForPlan.id) }}</span></p>
-           </div>
-         }
+      <header class="spm-header">
+        <div class="spm-header-icon" aria-hidden="true">📚</div>
+        <div class="spm-header-text">
+          <h2 id="spm-title">Plan de Estudio</h2>
+          <span>Plan personalizado generado con IA</span>
+        </div>
+        <button type="button" class="spm-close" aria-label="Cerrar" (click)="closeStudyPlanModal()">×</button>
+      </header>
+
+      <div class="spm-body">
+        @if (selectedStudentForPlan) {
+          <section class="spm-student">
+            <div class="spm-avatar" aria-hidden="true">{{ (selectedStudentForPlan.name || '').charAt(0) }}{{ (selectedStudentForPlan.surname || '').charAt(0) }}</div>
+            <div class="spm-student-main">
+              <h3>{{ selectedStudentForPlan.surname }} {{ selectedStudentForPlan.name }}</h3>
+              <p>{{ selectedGrade }} <span class="spm-dot">•</span> Período {{ selectedPeriod }}</p>
+            </div>
+            <div class="spm-score">
+              <span class="spm-score-label">Nota actual</span>
+              <span class="spm-score-badge" [class]="getFinalColor(selectedStudentForPlan.id)">{{ getFinalWithRecovery(selectedStudentForPlan.id) }}</span>
+            </div>
+          </section>
+        }
 
         @if (!planGenerated) {
-            <div class="plan-guidelines">
-              <strong>Plan profesional completo:</strong>
-              <p>El plan incluirá objetivo, cronograma de un solo día (DÍA 1), recursos reales, ejercicios prácticos, consejos y evaluación final. No se interrumpirá a la mitad.</p>
-            </div>
-            <div class="topics-input">
-              <label for="topics">📝 Temas que debe estudiar el estudiante:</label>
-              <textarea id="topics" name="topics" [(ngModel)]="studyPlanTopics" placeholder="Ej: Álgebra básico, ecuaciones de primer grado, operaciones con fracciones..." rows="4" autocomplete="off"></textarea>
+          <div class="spm-form">
+            <section class="spm-info">
+              <span class="spm-info-icon" aria-hidden="true">✨</span>
+              <div>
+                <strong>Plan profesional completo</strong>
+                <p>Incluye objetivo, cronograma de un solo día (DÍA 1), recursos reales, ejercicios prácticos, consejos y evaluación final. No se interrumpe a la mitad.</p>
+              </div>
+            </section>
 
-            <div class="image-upload-section">
-              <label for="topicImage">
-                <span class="upload-icon">📷</span>
-                Adjuntar imagen (opcional)
+            <section class="spm-card">
+              <label class="spm-label" for="topics">
+                <span aria-hidden="true">📝</span> Temas que debe estudiar el estudiante
               </label>
-               <input type="file" id="topicImage" name="topicImage" accept="image/*" (change)="onImageSelected($event)" multiple autocomplete="off">
+              <textarea id="topics" name="topics" class="spm-textarea" [(ngModel)]="studyPlanTopics" placeholder="Ej: Álgebra básico, ecuaciones de primer grado, operaciones con fracciones..." rows="5" autocomplete="off"></textarea>
+            </section>
+
+            <section class="spm-card">
+              <input type="file" id="topicImage" name="topicImage" class="spm-file" accept="image/*" (change)="onImageSelected($event)" multiple autocomplete="off">
+              <label for="topicImage" class="spm-drop">
+                <span class="spm-drop-icon" aria-hidden="true">📷</span>
+                <span class="spm-drop-text">
+                  <strong>Adjuntar imagen <em>(opcional)</em></strong>
+                  <small>Fotos del cuaderno, guía o evaluación para que la IA se base en ellas</small>
+                </span>
+                <span class="spm-drop-action">Elegir</span>
+              </label>
               @if (uploadedImages.length > 0) {
-                <div class="uploaded-images-preview">
+                <div class="spm-thumbs">
                   @for (img of uploadedImages; track $index) {
-                    <div class="image-preview-item">
+                    <div class="spm-thumb">
                       <img [src]="img.preview" alt="Imagen adjunta">
-                      <button type="button" class="remove-image" (click)="removeImage($index)">✕</button>
+                      <button type="button" class="spm-thumb-x" aria-label="Quitar imagen" (click)="removeImage($index)">✕</button>
                     </div>
                   }
                 </div>
               }
-            </div>
+            </section>
 
-            <button class="generate-btn" [class.generated]="planGenerated" [class.generating]="isGeneratingPlan" (click)="generateStudyPlan()" [disabled]="!studyPlanTopics.trim() || isGeneratingPlan">
+            <button type="button" class="spm-generate" [class.is-generating]="isGeneratingPlan" (click)="generateStudyPlan()" [disabled]="!studyPlanTopics.trim() || isGeneratingPlan">
               @if (isGeneratingPlan) {
-                <div class="btn-progress-bar">
-                  <div class="btn-progress-fill" [style.width.%]="progressPercent"></div>
-                </div>
-                <span class="btn-progress-text">{{ progressPercent | number:'1.0-0' }}%</span>
-              } @else if (planGenerated) {
-                ✅ Plan Generado
+                <span class="btn-progress-bar"><span class="btn-progress-fill" [style.width.%]="progressPercent"></span></span>
+                <span class="btn-progress-text">Generando plan… {{ progressPercent | number:'1.0-0' }}%</span>
               } @else {
-                🤖 Generar Plan con IA
+                <span aria-hidden="true">🤖</span> Generar plan con IA
               }
             </button>
+            @if (!studyPlanTopics.trim() && !isGeneratingPlan) {
+              <p class="spm-hint">Escribe al menos un tema para poder generar el plan.</p>
+            }
           </div>
         }
 
@@ -382,16 +416,14 @@
       </div>
 
       @if (studyPlanContent && planGenerated) {
-        <div class="modal-footer">
-          <button class="print-btn" (click)="printStudyPlan()">🖨️ Imprimir Plan</button>
+        <footer class="spm-footer">
+          <button type="button" class="spm-btn spm-btn-ghost" (click)="printStudyPlan()">🖨️ Imprimir plan</button>
           @if (planSaved) {
-            <button class="saved-btn" (click)="closeStudyPlanModal()">
-              <span class="saved-icon">✓</span> Guardado
-            </button>
+            <button type="button" class="spm-btn spm-btn-saved" (click)="closeStudyPlanModal()">✓ Guardado — cerrar</button>
           } @else {
-            <button class="save-btn" (click)="savePlan()">💾 Guardar</button>
+            <button type="button" class="spm-btn spm-btn-primary" (click)="savePlan()">💾 Guardar plan</button>
           }
-        </div>
+        </footer>
       }
     </div>
   </div>

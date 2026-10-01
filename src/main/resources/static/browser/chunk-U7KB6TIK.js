@@ -1,0 +1,1 @@
+import{O as t,ka as d}from"./chunk-RZKCAL5X.js";var r=class e{gradesUpdated=d(0);notifyGradeUpdate(){this.gradesUpdated.update(a=>a+1)}static \u0275fac=function(o){return new(o||e)};static \u0275prov=t({token:e,factory:e.\u0275fac,providedIn:"root"})};export{r as a};

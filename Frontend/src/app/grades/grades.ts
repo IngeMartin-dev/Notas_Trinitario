@@ -8,7 +8,7 @@ import { GlobalRealtimeService } from '../services/global-realtime.service';
 import { AuthService } from '../services/auth.service';
 import { GradeColumnConfigService, GradeColumn, GradeColumnType, GradeColumnConfigDto } from '../services/grade-column-config.service';
 import { DialogService } from '../services/dialog.service';
-import { Subscription } from 'rxjs';
+import { Subscription, firstValueFrom } from 'rxjs';
 
 interface Subject {
   id: number;
@@ -114,6 +114,7 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
   // Grupo ACT (ACT1..ACT7): un nombre y un porcentaje (1-100) para todas.
   actName = 'ACT';            // nombre editable del grupo ACT1..ACT7
   actPct: number | null = null; // un solo porcentaje para todas las ACT
+  evalPct = 20;                 // porcentaje de Eval.Period en la nota final (editable)
   // Nombres con porcentaje creados en el panel "Porcentajes" (Quiz, Taller...).
   categories: PctCategory[] = [];
   showPctPanel = false;
@@ -129,6 +130,7 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
   private weightsReady = false;
   private gradesLoaded = false;
   private saveConfigTimer: any = null;
+  private pctOverNotified = false;
 
   get totalConfigPct(): number {
     return (this.quizzesPct || 0) + (this.talleresPct || 0) + (this.actividadesPct || 0);
@@ -374,9 +376,13 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     const body = JSON.stringify(data);
     try {
       if (typeof fetch === 'function') {
+        const token = this.authService.getToken();
         fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { Authorization: `Bearer ${token}` } : {})
+          },
           body: body,
           keepalive: true
         }).catch(() => {});
@@ -547,6 +553,7 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
       this.gradeColumns = [];
       this.actPct = null;
       this.actName = 'ACT';
+      this.evalPct = 20;
       this.categories = [];
       this.weightsReady = true;
       return;
@@ -578,11 +585,14 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
             this.actName = 'ACT';
             this.actPct = sum > 0 ? Math.min(100, sum) : null;
           }
+          // Porcentaje de Eval.Period (por defecto 20).
+          const evalEntry = all.find(c => c.id === 'eval');
+          this.evalPct = evalEntry?.pct != null ? evalEntry.pct : 20;
           // Categorías (nombre + %) y columnas de la tabla que pertenecen a ellas.
           const cats: PctCategory[] = [];
           const cols: GradeColumn[] = [];
           for (const c of all) {
-            if (c.id === 'act' || /^act[1-7]$/.test(c.id)) continue;
+            if (c.id === 'act' || c.id === 'eval' || /^act[1-7]$/.test(c.id)) continue;
             if (c.kind === 'cat') {
               cats.push({ id: c.id, name: c.name, pct: c.pct ?? null });
             } else if (c.kind === 'col') {
@@ -609,6 +619,7 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
           this.gradeColumns = [];
           this.categories = [];
           this.actPct = null;
+          this.evalPct = 20;
           this.markWeightsReady();
           this.cdr.markForCheck();
         }
@@ -633,7 +644,22 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
   }
 
   get totalPctSum(): number {
-    return (this.actPct || 0) + this.categories.reduce((a, c) => a + (c.pct || 0), 0);
+    return (this.actPct || 0) + this.evalPct + this.categories.reduce((a, c) => a + (c.pct || 0), 0);
+  }
+
+  /** true si la suma de porcentajes (ACT + nombres + Eval.Period) pasa de 100. */
+  get pctOver(): boolean {
+    return this.totalPctSum > 100;
+  }
+
+  private notifyPctOver() {
+    if (this.pctOverNotified) return;
+    this.pctOverNotified = true;
+    void this.dialogService.alert(
+      `Los porcentajes suman ${this.totalPctSum}% y no pueden pasar de 100%. ` +
+      'Baja algún porcentaje para poder guardar; mientras tanto no se guardarán los cambios.',
+      'Porcentajes'
+    );
   }
 
   private categoryById(id: string | undefined): PctCategory | undefined {
@@ -685,6 +711,26 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     if (!input.value.trim()) input.value = this.actName;
   }
 
+  onEvalPctInput(event: Event) {
+    const input = event.target as HTMLInputElement;
+    const digits = input.value.replace(/[^0-9]/g, '');
+    if (digits === '') return; // se restaura al salir de la casilla
+    const v = Math.max(0, Math.min(100, parseInt(digits, 10)));
+    if (String(v) !== input.value) input.value = String(v);
+    this.evalPct = v;
+    this.onPctsChanged();
+  }
+
+  onEvalPctBlur(event: Event) {
+    const input = event.target as HTMLInputElement;
+    if (input.value.trim() === '') input.value = String(this.evalPct);
+  }
+
+  /** Parte de la nota final que aportan las actividades (100 - Eval.Period). */
+  get activitiesShare(): number {
+    return 100 - this.evalPct;
+  }
+
   onCategoryPctInput(cat: PctCategory, event: Event) {
     const input = event.target as HTMLInputElement;
     const v = this.parsePct(input.value);
@@ -718,8 +764,16 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     const subjectName = this.selectedSubject || this.teacherSubjectName;
     if (!teacherId || !subjectName || !this.selectedGrade || !this.selectedClassroom) return;
 
+    // Más de 100%: no se guarda nada y se avisa (una sola vez hasta que se corrija).
+    if (this.pctOver) {
+      this.notifyPctOver();
+      return;
+    }
+    this.pctOverNotified = false;
+
     const entries: GradeColumn[] = [
       { id: 'act', kind: 'cat', name: this.actName, type: 'ACTIVIDAD', pct: this.actPct ?? null, base: true },
+      { id: 'eval', name: 'Eval.Period', type: 'ACTIVIDAD', pct: this.evalPct, base: true },
       ...this.categories.map(c => ({
         id: c.id, kind: 'cat' as const, name: c.name, type: 'ACTIVIDAD' as GradeColumnType, pct: c.pct ?? null
       })),
@@ -754,6 +808,11 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
       return;
     }
     const pct = this.addCategoryPct != null ? Math.max(1, Math.min(100, Math.round(this.addCategoryPct))) : null;
+    if (this.totalPctSum + (pct ?? 0) > 100) {
+      const libre = Math.max(0, 100 - this.totalPctSum);
+      this.addCategoryError = `La suma no puede pasar de 100%. Solo quedan ${libre}% disponibles.`;
+      return;
+    }
     this.categories = [...this.categories, {
       id: 'cat_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       name,
@@ -788,6 +847,11 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
   }
 
   addColumnFromCategory(cat: PctCategory) {
+    if (this.pctOver) {
+      this.showAddColumnMenu = false;
+      this.notifyPctOver();
+      return;
+    }
     // Clave única con la que se guardan las notas de esta columna (no cambia
     // aunque después se renombre el porcentaje).
     const taken = new Set([
@@ -1295,13 +1359,13 @@ loadTeacherSubjectsForGradeRange() {
     return weights > 0 ? sum / weights : null;
   }
 
-  // 80% = promedio de actividades * 0.8. Si el profesor puso porcentajes,
+  // Actividades = promedio * (100 - % de Eval.Period) / 100. Si el profesor puso porcentajes,
   // el promedio es ponderado; si no, es el promedio simple de siempre.
   get80Percent(studentId: number): string {
     if (this.weightedMode) {
       const w = this.getWeightedActivityAverage(studentId);
       if (w === null) return '-';
-      return (w * 0.8).toFixed(2).replace('.', ',');
+      return (w * (this.activitiesShare / 100)).toFixed(2).replace('.', ',');
     }
 
     const grades = [
@@ -1320,7 +1384,7 @@ loadTeacherSubjectsForGradeRange() {
 
     const sum = grades.reduce((a, b) => a + b, 0);
     const avg = sum / grades.length;
-    const result = avg * 0.8;
+    const result = avg * (this.activitiesShare / 100);
     return result.toFixed(2).replace('.', ',');
   }
 
@@ -1331,13 +1395,13 @@ loadTeacherSubjectsForGradeRange() {
     return parseFloat(str.replace(',', '.'));
   }
 
-  // 20% = Evaluación × 0.2
+  // Eval.Period × su porcentaje (20% por defecto, editable)
   get20Percent(studentId: number): string {
     const ev = this.getGrade(studentId, 8);
 
     if (ev === null) return '-';
 
-    const result = ev * 0.2;
+    const result = ev * (this.evalPct / 100);
     return result.toFixed(2).replace('.', ',');
   }
 
@@ -1939,7 +2003,7 @@ loadTeacherSubjectsForGradeRange() {
   }
 
   saveNFinal(studentId: number) {
-    if (!this.weightsReady) return;
+    if (!this.weightsReady || this.pctOver) return;
     const p80 = this.get80PercentValue(studentId);
     const p20 = this.get20PercentValue(studentId);
 
@@ -2129,35 +2193,102 @@ loadTeacherSubjectsForGradeRange() {
   private renderMathExpressions() {
     const planContent = document.getElementById('study-plan-content');
     if (!planContent) return;
-    const waitForKatex = (callback: () => void, maxAttempts = 30) => {
+    const waitForKatex = (callback: () => void, maxAttempts = 50) => {
       let attempts = 0;
       const check = () => {
         attempts++;
         const katexAny = (window as any).katex;
-        if (katexAny && typeof katexAny.ParseError !== 'undefined') callback();
+        const hasAutoRender = typeof (window as any).renderMathInElement === 'function';
+        if (katexAny && typeof katexAny.ParseError !== 'undefined' && hasAutoRender) callback();
         else if (attempts < maxAttempts) setTimeout(check, 100);
-        else console.warn('KaTeX not fully loaded after maximum attempts');
+        else console.warn('[StudyPlan] KaTeX no se cargó tras ' + (maxAttempts * 100) + 'ms');
       };
       check();
     };
+
+    // 1) Primero fusionamos los <p> adyacentes que tienen fórmulas partidas.
+    //    mergeMathParagraphs() reescribe innerHTML, así que DEBE correr
+    //    ANTES de KaTeX (si no, destruye los spans .katex recién pintados).
+    try {
+      this.mergeMathParagraphs(planContent);
+    } catch (e) {
+      console.warn('[StudyPlan] mergeMathParagraphs falló', e);
+    }
+
+    // 2) Ahora KaTeX. Si todavía no está cargado, esperamos hasta 5s y, si
+    //    sigue sin estar, mostramos un fallback visible (sin $...$) para
+    //    que al menos la fórmula sea legible como texto.
     waitForKatex(() => {
       try {
-        if (typeof (window as any).renderMathInElement !== 'undefined') {
-          (window as any).renderMathInElement(planContent, { delimiters: [{ left: '$$', right: '$$', display: false }, { left: '$', right: '$', display: false }], throwOnError: false, trust: true, strict: false });
-        }
-        setTimeout(() => {
-          planContent.querySelectorAll('.katex-display').forEach((el: any) => {
-            const html = el.innerHTML || '';
-            if (html.includes('mfrac') || html.includes('\\frac')) el.classList.add('inline-only');
+        if (typeof (window as any).renderMathInElement === 'function') {
+          (window as any).renderMathInElement(planContent, {
+            delimiters: [
+              { left: '$$', right: '$$', display: false },
+              { left: '$', right: '$', display: false }
+            ],
+            throwOnError: false,
+            trust: true,
+            strict: false
           });
-        }, 50);
-        setTimeout(() => {
-          try {
-            this.mergeMathParagraphs(planContent);
-          } catch (e) { console.warn('Error merging math paragraphs', e); }
-        }, 120);
-      } catch (e) { console.warn('KaTeX rendering failed:', e); }
+        }
+        // Forzar display inline en fracciones (estilo "estudiante"):
+        // .katex-display > .katex > .mfrac se aplana para que no rompa el
+        // flujo del párrafo.
+        planContent.querySelectorAll('.katex-display').forEach((el: any) => {
+          const html = el.innerHTML || '';
+          if (html.includes('mfrac') || html.includes('\\frac')) {
+            el.classList.add('inline-only');
+          }
+        });
+      } catch (e) {
+        console.warn('[StudyPlan] KaTeX render falló', e);
+        this.fallbackMathToReadable(planContent);
+      }
     });
+
+    // 3) Fallback por si KaTeX nunca se carga: tras 5s, si NO se renderizó
+    //    ni una sola fórmula (no hay .katex en el DOM), quitamos los $...$
+    //    y ponemos el texto en cursiva para que sea legible.
+    setTimeout(() => {
+      const renderedCount = planContent.querySelectorAll('.katex').length;
+      if (renderedCount === 0 && /\$\$?[^$]+\$\$?/.test(planContent.textContent || '')) {
+        console.warn('[StudyPlan] KaTeX no pintó nada, aplicando fallback visible');
+        this.fallbackMathToReadable(planContent);
+      }
+    }, 5500);
+  }
+
+  /**
+   * Fallback visible cuando KaTeX no carga: convierte los tramos $...$ en
+   * texto en cursiva y les aplica un color destacado. No es renderizado
+   * matemático real, pero al menos deja legible la fórmula y elimina los
+   * delimitadores $ que rompen la lectura del texto.
+   */
+  private fallbackMathToReadable(container: HTMLElement) {
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, null);
+    const targets: Text[] = [];
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const t = node as Text;
+      if (!t.parentElement || t.parentElement.tagName === 'SCRIPT' || t.parentElement.tagName === 'STYLE') continue;
+      if (/\$[^$]+\$/.test(t.nodeValue || '')) targets.push(t);
+    }
+    for (const t of targets) {
+      const frag = document.createDocumentFragment();
+      const parts = (t.nodeValue || '').split(/(\$[^$]+\$)/g);
+      for (const part of parts) {
+        if (!part) continue;
+        if (/^\$[^$]+\$$/.test(part)) {
+          const span = document.createElement('span');
+          span.className = 'math-fallback';
+          span.textContent = part.slice(1, -1);
+          frag.appendChild(span);
+        } else {
+          frag.appendChild(document.createTextNode(part));
+        }
+      }
+      t.parentNode?.replaceChild(frag, t);
+    }
   }
 
   /** Une en un solo párrafo los <p> adyacentes que contienen fórmulas KaTeX,
@@ -2714,43 +2845,123 @@ loadTeacherSubjectsForGradeRange() {
       ? `\nIMÁGENES ADJUNTAS: Se han proporcionado ${this.uploadedImages.length} imagen(es) que contienen información relevante (ejercicios, exámenes, tareas del estudiante). Analiza estas imágenes para entender las dificultades del estudiante y generar un plan personalizado.\n`
       : '';
 
+    // Detección básica del área/materia a partir del nombre de la asignatura
+    // seleccionada. Esto le da al modelo contexto pedagógico real (no solo
+    // "grado Xº") y mejora MUCHO la calidad del plan cuando es matemáticas
+    // vs. ciencias vs. humanidades vs. inglés.
+    const subjectName = (this.selectedSubject || this.teacherSubjectName || '').toLowerCase();
+    const subjectArea =
+        /(matem|algebra|geometr|calculo|aritmet|estadistic|trigonometr)/.test(subjectName) ? 'Matemáticas' :
+        /(fisica|quimica|biolog)/.test(subjectName)                                  ? 'Ciencias Naturales' :
+        /(ingles|english|language)/.test(subjectName)                                 ? 'Inglés' :
+        /(lengua|literat|español|comprensi[oó]n\s*lectora|lectura)/.test(subjectName)  ? 'Lengua y Literatura' :
+        /(social|historia|geograf|civica|filosof)/.test(subjectName)                  ? 'Ciencias Sociales' :
+        /(informat|tecnolog|programac|tic)/.test(subjectName)                         ? 'Tecnología e Informática' :
+        /(artistica|m[uú]sica|pintura|dibujo)/.test(subjectName)                      ? 'Educación Artística' :
+        /(educacion\s*fisica|deporte)/.test(subjectName)                              ? 'Educación Física' :
+        /(religion|etica)/.test(subjectName)                                          ? 'Formación Integral' :
+                                                                                       'Área académica general';
 
-     const prompt = `Eres un pedagogo experto. Genera un plan de estudio en HTML, profesional, elegante y muy bien estructurado, para un estudiante que debe reforzar los temas indicados.
-Datos del estudiante:
-- Nombre: ${studentName}
-- Grado: ${this.selectedGrade}
-- Período: ${this.selectedPeriod}
+    // Nivel de andamiaje pedagógico según el grado. Grados menores requieren
+    // instrucciones más concretas y atomizadas; grados mayores, más autonomía.
+    const gradeNumber = parseInt((this.selectedGrade || '').toString().match(/\d+/)?.[0] || '0', 10);
+    const scaffoldingLevel =
+        gradeNumber <= 3 ? 'alto (instrucción muy atomizada, ejemplos visuales, sesiones cortas)' :
+        gradeNumber <= 7 ? 'medio (andamiaje explícito + práctica guiada + independiente)' :
+                           'bajo (retos complejos, metacognición, transferencia y conexión interdisciplinar)';
+
+    // Cantidad objetivo de ejercicios y nivel de profundidad — escala con el
+    // grado para que el plan no se quede corto ni se pase de rosca.
+    const ejercNivel1 = gradeNumber <= 3 ? 5 : gradeNumber <= 7 ? 5 : 4;
+    const ejercNivel2 = gradeNumber <= 3 ? 4 : gradeNumber <= 7 ? 4 : 4;
+    const ejercNivel3 = gradeNumber <= 3 ? 2 : gradeNumber <= 7 ? 3 : 3;
+    const numPreguntasEval = gradeNumber <= 3 ? 8 : 10;
+
+     const prompt = `ROL Y PERSONALIDAD:
+Eres un pedagogo senior con más de 20 años de experiencia diseñando planes de estudio personalizados. Combinas instrucción explicícita, andamiajecognitivo, práctica deliberada y ciencia del aprendizaje (práctica espaciada, retrieval practice, interleaving, dual coding, elaboración, metacognición). Tu tono es cálido, directo y respetuoso con el estudiante. Nunca condescendiente.
+
+PERFIL DEL PLAN:
+- Área/materia detectada: ${subjectArea}
+- Nombre del estudiante (solo para personalizar, NO usar en datos sensibles): ${studentName}
+- Grado: ${this.selectedGrade} (nivel ${gradeNumber || '?'}º)
+- Período académico: ${this.selectedPeriod}
 - Temas a reforzar: ${this.studyPlanTopics}
-
+- Andamiaje pedagógico recomendado: ${scaffoldingLevel}
 ${imageContext}
 
-REGLAS ESTRICTAS DE FORMATO:
-1. Responde ÚNICAMENTE con HTML válido y bien formado. Nada de texto fuera de las etiquetas HTML. No uses bloques de código ni comillas invertidas (triple backtick).
-2. No incluyas VIDEOS, enlaces a YouTube ni a ningún medio audiovisual, QUE ESTE DISPONIBLE EN EL MOMENTO, NO QUIERO QUE SEA ANTIGUA NI QUE YA NO EXISTA/NO ESTE DISPONIBLE . Bajo NINGUNA circunstancia escribas frases como "video no disponible", "ver video", "video", "YouTube" o similares.
-3. No incluyas fechas ni años concretos. Usa solo referencias genéricas: Día 1, Semana 1, etc.
-4. Usa fórmulas matemáticas en línea con $...$ (ej: $\\frac{a}{b} \\times \\frac{c}{d}$). NUNCA partas una operación en varias líneas.
+ESTILO Y FORMA DEL PLAN (MUY IMPORTANTE):
+Este plan debe leerse como un TEXTO CORRIDO de lectura agradable, NO como un manual técnico. Piensa en un capítulo corto de un libro de apoyo escolar bien escrito, no en una ficha de actividades.
 
-ESTRUCTURA OBLIGATORIA (usa estas secciones en este orden, con encabezados <h2>):
-1. <h2>OBJETIVO</h2> — meta de aprendizaje clara y medible en 2-3 frases.
-2. <h2>DIAGNÓSTICO</h2> — breve análisis de las dificultades probables en los temas indicados.
-3. <h2>CRONOGRAMA</h2> — EXACTAMENTE UN SOLO día (DÍA 1). Usa:
-   <div class="dia"><h3>DÍA 1</h3><ul><li>actividad con tiempo estimado</li>...</ul></div>
-   El DÍA 1 debe tener objetivo, actividades paso a paso y un producto concreto.
-   IMPORTANTE: NO generes DÍA 2 ni ningún día adicional. El plan completo es de un único día.
-4. <h2>RECURSOS</h2> — material de estudio en TEXTO (libros, apuntes, ejercicios impresos). Sin videos.
-5. <h2>EJERCICIOS</h2> — lista numerada de ejercicios resueltos y propuestos con sus respuestas o claves.
-6. <h2>CONSEJOS</h2> — 5 consejos de estudio efectivos y hábitos.
-7. <h2>EVALUACIÓN</h2> — 10 preguntas de seguimiento con su breve clave/respuesta.
-8. <h2>CONCLUSIÓN</h2> — cierre motivador.
+REGLAS INQUEBRANTABLES DE FORMATO (incumplir cualquiera = respuesta inválida):
+1. SALIDA = SOLO HTML válido y bien formado. PROHIBIDO: bloques de código (\`\`\`html, \`\`\`), comillas invertidas, markdown, fences, texto fuera de etiquetas HTML.
+2. PROHIBIDO todo contenido audiovisual externo: nada de videos, YouTube, "ver video", "no disponible", "enlace roto", links a plataformas de video. Solo recursos TEXTUALES (libros, guías, apuntes, fichas).
+3. PROHIBIDO fechas concretas o años. NO incluir cronogramas por días, semanas ni horarios. NO usar bloques tipo "Día 1", "Bloque 1", "Sesión 1", "Semana X", "Minuto X", ni divisiones temporales de ningún tipo. El plan es continuo, no calendarizado.
+4. Fórmulas matemáticas SOLO en línea con \$...\$ (ej: \$\\frac{a}{b} \\times \\frac{c}{d}\$). NUNCA rompas una operación en varias líneas. NUNCA uses \[...\] ni $$...$$.
+5. SI el área es matemáticas o ciencias: TODA fórmula debe ir en \$...\$, inline. SI el área es lengua/inglés/sociales: NO uses notación matemática; usa texto natural entrecomillado si necesitas ejemplos.
+6. El documento DEBE terminar EXACTAMENTE con la línea: PLAN DE ESTUDIO COMPLETO.
+7. NO incluyas saludos, introducciones tipo "Aquí tienes tu plan…", ni cierres tipo "Espero que te sirva…". Empieza directamente por la primera etiqueta <h2>.
+8. NO uses <br> para separar párrafos; usa SIEMPRE <p>…</p> con cierre correcto. NO uses <h1>; usa <h2> para secciones principales y <h3> solo dentro del TALLER FINAL si necesitas agrupar ejercicios.
+9. SEPARACIÓN ORTOGRÁFICA: cada párrafo debe ir en su propio <p> con margen visible (el CSS ya añade separación, pero tú DEBES entregar párrafos cortos, de 2-4 frases máximo, NO bloques compactos). Tras cada <p> añade UN párrafo en blanco (un <p></p> vacío) SOLO si quieres forzar un salto mayor; en general basta con párrafos cortos.
 
-Estética: usa encabezados claros, viñetas, tablas simples y un estilo limpio y serio. Termina el documento completo con la frase exacta "PLAN DE ESTUDIO COMPLETO". Si el texto se corta, continúa hasta terminar todas las secciones.`;
+ESTRUCTURA OBLIGATORIA (encabezados <h2> en este orden EXACTO, sin saltarse ninguno, sin agregar secciones extra):
+
+1. <h2>OBJETIVO</h2>
+   Una meta SMART contada en 2-3 párrafos cortos (no una sola frase larga). Vincula explícitamente los temas del estudiante con 2-3 competencias curriculares propias de ${this.selectedGrade} en ${subjectArea}. Tono cercano, dirigido al estudiante en segunda persona ("vas a…", "podrás…").
+
+2. <h2>INTRODUCCIÓN</h2>
+   2-4 párrafos cortos que ContextUALIZAN los temas: por qué son importantes, dónde se usan en la vida real, qué van a aprender en concreto. Es la "puerta de entrada" al texto. Lenguaje claro, sin tecnicismos innecesarios.
+
+3. <h2>DESARROLLO DEL TEMA</h2>
+   Esta es la sección MÁS EXTENSA. Es el cuerpo del texto explicativo. Estructura el contenido en 4-6 subtemas (<h3>Auto-descubiertos según los temas dados, NO usar "Subtema 1", "Subtema 2" — usar nombres reales como <h3>Multiplicación de fracciones</h3>, <h3>Regla de tres simple</h3>, etc.). Cada subtema debe tener 2-4 párrafos cortos explicativos. Puedes usar <strong> para resaltar ideas clave y <em> para matices. NO insertes listas largas aquí; el desarrollo es prosa.
+
+4. <h2>ERRORES COMUNES A EVITAR</h2>
+   Lista <ul> con 4-6 errores típicos ESPECÍFICOS de los temas dados. Para cada error: <strong>nombre del error</strong> + 1 frase de por qué ocurre + 1 frase de cómo evitarlo. Tono constructivo, no sancionador.
+
+5. <h2>CONSEJOS DE ESTUDIO</h2>
+   4-5 párrafos cortos (uno por consejo), cada uno con un <strong>título</strong> al inicio. Basados en ciencia del aprendizaje aplicados ESPECÍFICAMENTE a estos temas (NO consejos genéricos como "estudia más"). Pueden mencionar técnicas como práctica espaciada, retrieval, elaboración, pero SIEMPRE conectadas al contenido concreto.
+
+6. <h2>TALLER DE PRÁCTICA</h2>
+   Esta es la ÚNICA sección con ejercicios / actividades prácticas. Estructura:
+   - <p>Un párrafo corto de introducción al taller (2-3 frases) que explique qué va a practicar el estudiante y por qué.</p>
+   - <h3>Ejercicios básicos (${ejercNivel1})</h3> seguidos de una lista <ol> con los ${ejercNivel1} ejercicios. Formato: "<strong>Ejercicio N.</strong> [enunciado completo]. Respuesta: [clave o procedimiento]."
+   - <h3>Ejercicios de aplicación (${ejercNivel2})</h3> seguidos de <ol> con los ${ejercNivel2} ejercicios en el mismo formato.
+   - <h3>Ejercicio de desafío (${ejercNivel3})</h3> seguidos de <ol> con los ${ejercNivel3} ejercicios. Estos pueden incluir "Pista:" breve al final.
+
+7. <h2>PARA PROFUNDIZAR</h2>
+   3-5 párrafos cortos sugiriendo lecturas, ejercicios opcionales o ideas para que el estudiante siga avanzando por su cuenta. NO enlaces web ni videos; solo referencias TEXTUALES (capítulos de libros, tipos de problemas para buscar, etc.).
+
+8. <h2>CIERRE MOTIVADOR</h2>
+   2-3 párrafos cortos, personalizados (usa ${studentName} una vez), con mentalidad de crecimiento. Tono cálido y realista, nada de frases vacías.
+
+ESTILO VISUAL OBLIGATORIO:
+- <h2> secciones principales, <h3> solo dentro del TALLER y para subtemas del DESARROLLO.
+- <p> con párrafos CORTOS (2-4 frases). NUNCA párrafos de 8+ líneas.
+- <strong> para énfasis puntual, <em> para tono reflexivo.
+- <ul>/<ol> SOLO en "Errores comunes" y "Taller de práctica".
+- Sin tablas (no se necesitan en este formato).
+- Sin recuadros, sin divs de colores, sin bloques estructurados.
+- El documento debe leerse como un artículo de blog educativo bien editado.
+
+EJEMPLO DE ANCLAJE DE ESTILO (solo referencia, NO copies literal):
+<h2>OBJETIVO</h2>
+<p>Vas a aprender a multiplicar fracciones de forma segura, explicando cada paso con tus propias palabras. Al terminar, podrás resolver ejercicios de ${subjectArea} típicos de ${this.selectedGrade} sin necesidad de ayuda externa.</p>
+<p>Esta habilidad es la base para temas posteriores como la división de fracciones y los problemas de proporcionalidad, así que vale la pena que la domines con calma.</p>
+
+CADENA DE GENERACIÓN (obligatoria, en este orden):
+A) Planifica internamente el contenido de cada sección.
+B) Escribe la salida EN ORDEN: OBJETIVO → INTRODUCCIÓN → DESARROLLO → ERRORES COMUNES → CONSEJOS → TALLER → PROFUNDIZAR → CIERRE.
+C) Cierra con la línea exacta "PLAN DE ESTUDIO COMPLETO".
+D) NO repitas secciones. NO dejes secciones a medias. NO cortes a mitad de un párrafo o una lista.
+E) Si el texto es largo, sigue hasta terminar; bajo NINGÚN concepto te detengas antes de "PLAN DE ESTUDIO COMPLETO".
+
+AHORA genera el plan completo de una sola vez.`;
 
 
 
 // Si Mistral se cuelga y no llega NINGÚN dato nuevo en este tiempo, se
-         // corta la espera y se muestra un error en vez de dejar la rueda de
-         // carga girando indefinidamente ("se demora mucho" / "no genera").
-          const AI_IDLE_TIMEOUT_MS = 150000;
+          // corta la espera y se muestra un error en vez de dejar la rueda de
+          // carga girando indefinidamente ("se demora mucho" / "no genera").
+           const AI_IDLE_TIMEOUT_MS = 300000; // 5 minutos para planes complejos
          let idleTimer: any = null;
          const abortController = new AbortController();
          const resetIdleTimer = () => {
@@ -2763,16 +2974,16 @@ try {
            // The API key stays server-side; the backend returns the SSE stream.
            const url = `${this.AI_PROXY_BASE}/study-plan-stream`;
            resetIdleTimer();
-           const response = await fetch(url, {
+           const response = await this.authFetch(url, {
              method: 'POST',
              headers: {
                'Content-Type': 'application/json'
              },
-              body: JSON.stringify({
-                prompt: prompt,
-                temperature: 0.4,
-                 max_tokens: 4096
-              }),
+body: JSON.stringify({
+                 prompt: prompt,
+                 temperature: 0.25,
+                  max_tokens: 12000
+               }),
               signal: abortController.signal
            });
 
@@ -2783,8 +2994,8 @@ if (!response.ok) {
              errorMsg = 'El servicio de IA no está disponible temporalmente. Por favor intenta más tarde o contacta al administrador.';
            } else if (response.status === 429) {
              errorMsg = 'Has excedido el límite de solicitudes. Por favor espera un momento e intenta de nuevo.';
-           } else if (response.status === 401) {
-             errorMsg = 'Error de autenticación con la API. Contacta al administrador.';
+           } else if (response.status === 401 || response.status === 403) {
+             errorMsg = 'Tu sesión expiró o no tienes permiso para usar la IA. Cierra sesión, vuelve a entrar e intenta de nuevo.';
            } else {
              errorMsg = `Error del servidor (${response.status}). Por favor intenta de nuevo.`;
            }
@@ -2932,12 +3143,14 @@ if (!response.ok) {
             this.studyPlanContent = this.keepOnlyDayOne(this.combineMathParagraphs(cleanHtml.trim()));
            // Filter out unavailable videos
            this.studyPlanContentSafe = this.sanitizer.bypassSecurityTrustHtml(this.studyPlanContent);
-           
+
            // Apply video filtering after HTML is generated
            setTimeout(async () => {
              const filteredContent = await this.filterUnavailableVideos(this.studyPlanContent);
              this.studyPlanContent = filteredContent;
              this.studyPlanContentSafe = this.sanitizer.bypassSecurityTrustHtml(filteredContent);
+             // Re-renderizar KaTeX DESPUÉS de la reescritura del DOM.
+             this.renderMathExpressions();
            }, 100);
          } else {
            // Convert markdown to HTML - first strip code fences if present
@@ -2956,12 +3169,14 @@ if (!response.ok) {
 
             this.studyPlanContent = this.keepOnlyDayOne(this.combineMathParagraphs(this.convertMarkdownToHtml(markdown)));
            this.studyPlanContentSafe = this.sanitizer.bypassSecurityTrustHtml(this.studyPlanContent);
-           
+
            // Apply video filtering after HTML is generated
            setTimeout(async () => {
              const filteredContent = await this.filterUnavailableVideos(this.studyPlanContent);
              this.studyPlanContent = filteredContent;
              this.studyPlanContentSafe = this.sanitizer.bypassSecurityTrustHtml(filteredContent);
+             // Re-renderizar KaTeX DESPUÉS de la reescritura del DOM.
+             this.renderMathExpressions();
            }, 100);
          }
 
@@ -2982,6 +3197,8 @@ if (!response.ok) {
                const filteredContent = await this.filterUnavailableVideos(this.studyPlanContent);
                this.studyPlanContent = filteredContent;
                this.studyPlanContentSafe = this.sanitizer.bypassSecurityTrustHtml(filteredContent);
+               // Re-renderizar KaTeX DESPUÉS de la reescritura del DOM.
+               this.renderMathExpressions();
              }, 100);
            }
          }
@@ -3095,10 +3312,41 @@ if (!response.ok) {
     return requiredSections.every(section => normalized.includes(section));
   }
 
+  /**
+   * fetch() con la sesión del usuario. Las llamadas con fetch NO pasan por el
+   * interceptor HTTP de Angular, así que sin esto el backend las rechazaba con
+   * 403 (todo /api/** exige JWT). Si el token venció, se renueva una vez y se
+   * reintenta.
+   */
+  private async authFetch(url: string, init: RequestInit = {}): Promise<Response> {
+    const send = (token: string | null) => fetch(url, {
+      ...init,
+      headers: {
+        ...((init.headers as Record<string, string>) || {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {})
+      }
+    });
+
+    let res = await send(this.authService.getToken());
+    if (res.status === 401 || res.status === 403) {
+      try {
+        const r: any = await firstValueFrom(this.authService.refreshToken());
+        if (r?.token) {
+          localStorage.setItem('token', r.token);
+          if (r.refreshToken) localStorage.setItem('refreshToken', r.refreshToken);
+          res = await send(r.token);
+        }
+      } catch {
+        /* sin refresh token válido: se devuelve la respuesta original */
+      }
+    }
+    return res;
+  }
+
   private async requestStudyPlanContinuation(partialPlan: string): Promise<string> {
     try {
       const url = `${this.AI_PROXY_BASE}/study-plan-continuation`;
-      const response = await fetch(url, {
+      const response = await this.authFetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -3123,12 +3371,14 @@ if (!response.ok) {
     if (sanitizedPreview.trim()) {
       this.studyPlanContent = this.convertMarkdownToHtml(sanitizedPreview);
       this.studyPlanContentSafe = this.sanitizer.bypassSecurityTrustHtml(this.studyPlanContent);
-      
+
       // Apply video filtering to preview as well
       setTimeout(async () => {
         const filteredContent = await this.filterUnavailableVideos(this.studyPlanContent);
         this.studyPlanContent = filteredContent;
         this.studyPlanContentSafe = this.sanitizer.bypassSecurityTrustHtml(filteredContent);
+        // Re-renderizar KaTeX DESPUÉS de la reescritura del DOM.
+        this.renderMathExpressions();
       }, 100);
     }
 

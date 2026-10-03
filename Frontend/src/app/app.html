@@ -59,6 +59,15 @@
                   </a>
                 </li>
               }
+              <!-- Promociones (egresados de Grado 11º): solo Administrador -->
+              @if (isAdmin()) {
+                <li [class.active]="activeRoute() === 'promociones'">
+                  <a routerLink="/promociones" (click)="setActiveRoute('promociones')">
+                    <span class="material-icons">workspace_premium</span>
+                    <span class="menu-text">Promociones</span>
+                  </a>
+                </li>
+              }
               <!-- Recuperaciones: solo Profesor / Director de Grupo -->
               @if (isTeacherOrDirector()) {
                 <li [class.active]="activeRoute() === 'recoveries'">

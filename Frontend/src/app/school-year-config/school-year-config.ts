@@ -35,6 +35,7 @@ export class SchoolYearConfig implements OnInit {
   advanceMessage = '';
   pendientes: PendienteOrganizar[] = [];
   asignaciones: { [studentId: number]: 'A' | 'B' } = {};
+  guardandoEstudiante: { [studentId: number]: boolean } = {};
   savingClassrooms = false;
 
   // Asistente paso a paso "Organizar salones" (Grado 1 a Grado 11).
@@ -132,7 +133,7 @@ export class SchoolYearConfig implements OnInit {
   // ── Adelantar / retroceder año ───────────────────────────────────────
   async advanceYear() {
     const ok = await this.dialogService.confirm(
-      '¿Seguro que quieres adelantar el año? Todos los estudiantes activos subirán un grado. Podrás organizar los salones a continuación, y también deshacerlo con "Retroceder año".',
+      '¿Seguro que quieres adelantar el año? Todos los estudiantes activos subirán un grado (los de Grado 11º pasan a Promociones) y se borrarán los porcentajes de calificaciones de todos los salones. Podrás organizar los salones a continuación, y deshacer el cambio de grados con "Retroceder año" (los porcentajes borrados no se recuperan).',
       'Adelantar año'
     );
     if (!ok) return;
@@ -142,7 +143,7 @@ export class SchoolYearConfig implements OnInit {
     this.service.advanceYear().subscribe({
       next: (res) => {
         this.advancing = false;
-        this.advanceMessage = `${res.estudiantesPromovidos} estudiante(s) promovido(s), ${res.estudiantesGraduados} graduado(s) de Grado 11º.`;
+        this.advanceMessage = `${res.estudiantesPromovidos} estudiante(s) promovido(s), ${res.estudiantesGraduados} pasaron a Promociones (Grado 11º).`;
         this.pendientes = res.pendientesDeOrganizar;
         this.asignaciones = {};
         this.newStudentsGrade1 = [];
@@ -205,8 +206,20 @@ export class SchoolYearConfig implements OnInit {
     return this.pendientes.filter(p => p.grade === grade && this.asignaciones[p.studentId] === salon).length;
   }
 
+  /** Pulsar A o B: el estudiante pasa YA a ese salón (se guarda al instante). */
   toggleAsignacion(studentId: number, salon: 'A' | 'B') {
+    const anterior = this.asignaciones[studentId];
+    if (anterior === salon || this.guardandoEstudiante[studentId]) return;
     this.asignaciones[studentId] = salon;
+    this.guardandoEstudiante[studentId] = true;
+    this.service.assignClassrooms({ [studentId]: salon }).subscribe({
+      next: () => { this.guardandoEstudiante[studentId] = false; },
+      error: () => {
+        this.guardandoEstudiante[studentId] = false;
+        if (anterior) this.asignaciones[studentId] = anterior; else delete this.asignaciones[studentId];
+        this.advanceMessage = 'No se pudo asignar el salón. Intenta de nuevo.';
+      }
+    });
   }
 
   // ── Asistente paso a paso: Grado 1 → Grado 11 ────────────────────────
@@ -247,7 +260,7 @@ export class SchoolYearConfig implements OnInit {
       surname: this.newStudentForm.surname.trim(),
       documentNumber: this.newStudentForm.documentNumber.trim(),
       grade: 'Grado 1º',
-      classGroup: this.newStudentForm.classGroup,
+      classGroup: 'Salon ' + this.newStudentForm.classGroup,
       active: true
     }).subscribe({
       next: () => {
@@ -268,44 +281,16 @@ export class SchoolYearConfig implements OnInit {
 
   // -- Navegación del asistente --
   siguientePasoWizard() {
-    if (this.currentWizardGradeNumber === 1) {
-      // Nada que guardar en el backend aparte de lo ya creado; solo avanzar.
-      this.avanzarIndiceWizard();
-      return;
-    }
-
-    const pendientesPaso = this.pendientesDelPasoActual;
-    const asignacionesPaso: { [studentId: number]: 'A' | 'B' } = {};
-    for (const p of pendientesPaso) {
-      if (this.asignaciones[p.studentId]) {
-        asignacionesPaso[p.studentId] = this.asignaciones[p.studentId];
-      }
-    }
-
-    if (Object.keys(asignacionesPaso).length === 0) {
-      // Nadie marcado en este grado todavía: se puede avanzar igual (se
-      // podrá volver más tarde, quedan como pendientes).
-      this.avanzarIndiceWizard();
-      return;
-    }
-
-    this.savingClassrooms = true;
-    this.service.assignClassrooms(asignacionesPaso).subscribe({
-      next: () => {
-        this.savingClassrooms = false;
-        this.loadPendientes();
-        this.avanzarIndiceWizard();
-      },
-      error: () => {
-        this.savingClassrooms = false;
-        this.advanceMessage = 'No se pudo guardar la organización de este grado.';
-      }
-    });
+    // Las asignaciones A/B ya se guardaron al pulsar cada botón: solo se avanza.
+    this.avanzarIndiceWizard();
   }
 
   private avanzarIndiceWizard() {
     if (this.isLastWizardStep) {
-      this.advanceMessage = 'Organización de salones completada de Grado 1º a Grado 11º.';
+      const sinSalon = this.pendientes.filter(p => !this.asignaciones[p.studentId]).length;
+      this.advanceMessage = sinSalon > 0
+        ? `Quedaron ${sinSalon} estudiante(s) sin salón; los verás de nuevo al entrar a esta pantalla.`
+        : 'Organización de salones completada de Grado 1º a Grado 11º.';
       this.pendientes = [];
       this.currentWizardIndex = 0;
       this.loadConfig();

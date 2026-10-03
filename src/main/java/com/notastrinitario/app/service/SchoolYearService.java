@@ -3,6 +3,8 @@ package com.notastrinitario.app.service;
 import com.notastrinitario.app.entity.SchoolYearConfig;
 import com.notastrinitario.app.entity.Student;
 import com.notastrinitario.app.repository.*;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
@@ -25,12 +27,16 @@ public class SchoolYearService {
     private final RecoveryPlanRepository recoveryPlanRepository;
     private final ReportCardRepository reportCardRepository;
     private final ReportCardHistoryRepository reportCardHistoryRepository;
-    private final BoletinDraftRepository boletinDraftRepository;
+    private final BoletinObjetivoRepository boletinObjetivoRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final GradeColumnConfigRepository gradeColumnConfigRepository;
     private final NotificationRepository notificationRepository;
     private final PeriodRepository periodRepository;
     private final HomeroomAssignmentRepository homeroomAssignmentRepository;
+    private final PromotionService promotionService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     private static final int GRADO_MAXIMO = 11;
 
@@ -41,12 +47,13 @@ public class SchoolYearService {
                               RecoveryPlanRepository recoveryPlanRepository,
                               ReportCardRepository reportCardRepository,
                               ReportCardHistoryRepository reportCardHistoryRepository,
-                              BoletinDraftRepository boletinDraftRepository,
+                              BoletinObjetivoRepository boletinObjetivoRepository,
                               ChatMessageRepository chatMessageRepository,
                               GradeColumnConfigRepository gradeColumnConfigRepository,
                               NotificationRepository notificationRepository,
                               PeriodRepository periodRepository,
-                              HomeroomAssignmentRepository homeroomAssignmentRepository) {
+                              HomeroomAssignmentRepository homeroomAssignmentRepository,
+                              PromotionService promotionService) {
         this.schoolYearConfigRepository = schoolYearConfigRepository;
         this.studentRepository = studentRepository;
         this.subjectGradeRepository = subjectGradeRepository;
@@ -54,12 +61,13 @@ public class SchoolYearService {
         this.recoveryPlanRepository = recoveryPlanRepository;
         this.reportCardRepository = reportCardRepository;
         this.reportCardHistoryRepository = reportCardHistoryRepository;
-        this.boletinDraftRepository = boletinDraftRepository;
+        this.boletinObjetivoRepository = boletinObjetivoRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.gradeColumnConfigRepository = gradeColumnConfigRepository;
         this.notificationRepository = notificationRepository;
         this.periodRepository = periodRepository;
         this.homeroomAssignmentRepository = homeroomAssignmentRepository;
+        this.promotionService = promotionService;
     }
 
     @Transactional
@@ -94,16 +102,25 @@ public class SchoolYearService {
      * recuperaciones, borradores, chats, configuraciones de columnas,
      * notificaciones, periodos) pero CONSERVA los estudiantes, su
      * documento de identidad y sus padres de familia enlazados, tal como
-     * se pidio.
+     * se pidio. Tambien borra los porcentajes de calificaciones de cada
+     * salon y los objetivos predeterminados de boletines. NO toca la
+     * seccion Promociones (se conserva 5 anos).
+     *
+     * Todo ocurre en una sola transaccion: si algo falla, no se borra nada
+     * a medias.
      */
     @Transactional
     public void wipeYearData() {
+        // Las firmas ligadas a un boletin deben ir primero: si la base de datos
+        // no tiene ON DELETE CASCADE, borrar report_cards fallaria por la FK.
+        entityManager.createNativeQuery("DELETE FROM digital_signatures WHERE report_card_id IS NOT NULL")
+                .executeUpdate();
         subjectGradeRepository.deleteAllInBatch();
         recoveryDataRepository.deleteAllInBatch();
         recoveryPlanRepository.deleteAllInBatch();
         reportCardHistoryRepository.deleteAllInBatch();
         reportCardRepository.deleteAllInBatch();
-        boletinDraftRepository.deleteAllInBatch();
+        boletinObjetivoRepository.deleteAllInBatch();
         chatMessageRepository.deleteAllInBatch();
         gradeColumnConfigRepository.deleteAllInBatch();
         notificationRepository.deleteAllInBatch();
@@ -147,22 +164,31 @@ public class SchoolYearService {
 
     public static class PromocionResultado {
         public int estudiantesPromovidos;
+        /** Estudiantes de Grado 11º que pasaron a la seccion Promociones. */
         public int estudiantesGraduados;
         public List<Map<String, Object>> pendientesDeOrganizar;
     }
 
     /**
      * Promueve a todos los estudiantes activos un grado hacia arriba
-     * (Grado 7o -> Grado 8o, etc). Los de Grado 11o se marcan como
-     * graduados (active = false) y no requieren organizacion de salon.
-     * Los demas conservan su salon (A sigue en A, B sigue en B). Solo
-     * quedan pendientes los que no tenian salon asignado.
+     * (Grado 7o -> Grado 8o, etc), conservando su salon (A sigue en A).
+     * Los de Grado 11o pasan a la seccion Promociones: se guarda su registro
+     * y sus boletines durante 5 anos y salen de las listas de grados.
+     * Grado 1o queda vacio (no existe Grado 0): ahi se registran los
+     * estudiantes nuevos.
+     *
+     * Tambien borra los porcentajes de calificaciones de todos los salones
+     * (cada ano escolar los define de nuevo cada profesor).
      */
     @Transactional
     public PromocionResultado advanceYear() {
         List<Student> estudiantes = studentRepository.findAll().stream()
                 .filter(Student::isActive)
                 .collect(Collectors.toList());
+
+        SchoolYearConfig config = getConfig();
+        int anioEscolar = config.getCurrentAcademicYear() != null
+                ? config.getCurrentAcademicYear() : LocalDate.now().getYear();
 
         PromocionResultado resultado = new PromocionResultado();
         resultado.pendientesDeOrganizar = new ArrayList<>();
@@ -171,36 +197,39 @@ public class SchoolYearService {
             Integer numero = numeroGrado(s.getGrade());
             if (numero == null) continue;
 
+            // Se archiva ANTES de cambiar grado/salon: se usan para ubicar sus PDF.
+            if (numero >= GRADO_MAXIMO) {
+                promotionService.archivarEstudiante(s, anioEscolar);
+            }
+
             s.setPreviousGrade(s.getGrade());
             s.setPreviousClassGroup(s.getClassGroup());
 
             if (numero >= GRADO_MAXIMO) {
+                s.setGrade(PromotionService.GRADO_PROMOCIONES);
+                s.setClassGroup(null);
                 s.setActive(false);
                 resultado.estudiantesGraduados++;
             } else {
-                // n -> n+1 conservando el salon (1A -> 2A, 1B -> 2B, ...) para que
-                // los estudiantes aparezcan de inmediato en su nuevo grado.
-                // Grado 1 queda sin estudiantes (no existe Grado 0); alli se
-                // registran los estudiantes nuevos.
-                int nuevoNumero = numero + 1;
-                s.setGrade(formatearGrado(nuevoNumero));
+                s.setGrade(formatearGrado(numero + 1));
+                // Nadie conserva su salon: el administrador asigna A o B a cada uno.
+                s.setClassGroup(null);
                 resultado.estudiantesPromovidos++;
 
-                // Solo quedan "pendientes" los que no tenian salon asignado.
-                if (s.getClassGroup() == null || s.getClassGroup().isBlank()) {
-                    Map<String, Object> pendiente = new LinkedHashMap<>();
-                    pendiente.put("studentId", s.getId());
-                    pendiente.put("name", s.getName());
-                    pendiente.put("surname", s.getSurname());
-                    pendiente.put("newGrade", s.getGrade());
-                    resultado.pendientesDeOrganizar.add(pendiente);
-                }
+                Map<String, Object> pendiente = new LinkedHashMap<>();
+                pendiente.put("studentId", s.getId());
+                pendiente.put("name", s.getName());
+                pendiente.put("surname", s.getSurname());
+                pendiente.put("newGrade", s.getGrade());
+                resultado.pendientesDeOrganizar.add(pendiente);
             }
         }
 
         studentRepository.saveAll(estudiantes);
 
-        SchoolYearConfig config = getConfig();
+        // Los porcentajes de calificaciones son por salon y por ano: se reinician.
+        gradeColumnConfigRepository.deleteAllInBatch();
+
         config.setLastAdvancedAt(LocalDateTime.now());
         config.setAdvancePendingClassroomOrg(!resultado.pendientesDeOrganizar.isEmpty());
         schoolYearConfigRepository.save(config);
@@ -220,6 +249,14 @@ public class SchoolYearService {
                 .collect(Collectors.toList());
     }
 
+    /** "A" -> "Salon A", "b" -> "Salon B"; "Salon A" se deja igual (asi se llaman en toda la app). */
+    private String normalizarSalon(String valor) {
+        if (valor == null) return null;
+        String v = valor.trim();
+        if (v.length() == 1) return "Salon " + v.toUpperCase();
+        return v;
+    }
+
     /** Aplica la distribucion A/B decidida por el administrador. */
     @Transactional
     public int assignClassrooms(Map<Long, String> asignaciones) {
@@ -228,7 +265,7 @@ public class SchoolYearService {
             Optional<Student> opt = studentRepository.findById(entry.getKey());
             if (opt.isPresent()) {
                 Student s = opt.get();
-                s.setClassGroup(entry.getValue());
+                s.setClassGroup(normalizarSalon(entry.getValue()));
                 studentRepository.save(s);
                 aplicados++;
             }
@@ -252,6 +289,10 @@ public class SchoolYearService {
         int revertidos = 0;
         for (Student s : todos) {
             if (s.getPreviousGrade() != null) {
+                // Si habia pasado a Promociones, se quita de esa seccion.
+                if (PromotionService.GRADO_PROMOCIONES.equals(s.getGrade())) {
+                    promotionService.eliminarPorEstudiante(s.getId());
+                }
                 s.setGrade(s.getPreviousGrade());
                 s.setClassGroup(s.getPreviousClassGroup());
                 s.setPreviousGrade(null);

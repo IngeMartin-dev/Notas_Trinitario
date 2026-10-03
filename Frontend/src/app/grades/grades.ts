@@ -130,6 +130,11 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
   private weightsReady = false;
   private gradesLoaded = false;
   private saveConfigTimer: any = null;
+  /** Curso (profesor|materia|grado|salón) al que pertenecen los porcentajes que hay
+   *  en pantalla. Solo se guarda en el servidor si coincide con el curso seleccionado:
+   *  así nunca se escribe la config de un salón dentro de otro. */
+  private configContextKey: string | null = null;
+  private columnConfigSub: Subscription | null = null;
   private pctOverNotified = false;
 
   get totalConfigPct(): number {
@@ -408,6 +413,8 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
       this.periodsSubscription.unsubscribe();
     }
     // Enviar las guardadas pendientes en lugar de descartarlas al salir del componente
+    this.flushColumnConfig();
+    this.columnConfigSub?.unsubscribe();
     for (const key of Array.from(this.gradeSaveTimers.keys())) {
       this.flushGradeKey(key);
     }
@@ -477,6 +484,10 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
      this.selectedGrade = grade;
      this.selectedClassroom = classroom;
 
+     // Los porcentajes son de cada salón: se vacían ya mismo para que nada del
+     // salón anterior quede en pantalla ni se pueda guardar en el nuevo.
+     this.resetColumnConfigState();
+
      // Reload unlocked periods in case they changed
      this.loadUnlockedPeriods();
 
@@ -531,6 +542,7 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     this.selectedSubjectId = subject.id ?? null;
     this.selectedSubject = subject.name;
     this.teacherSubjectName = subject.name;
+    this.resetColumnConfigState();
     this.applyGradeFilterForSubject(subject, false);
     this.loadGrades();
     this.loadRecoveryData();
@@ -546,10 +558,50 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     return user?.id ?? null;
   }
 
-  loadColumnConfig() {
+  /** Vacía los porcentajes/columnas en pantalla y cancela cualquier carga en curso. */
+  private resetColumnConfigState() {
+    this.columnConfigSub?.unsubscribe();
+    this.columnConfigSub = null;
+    this.configContextKey = null;
+    if (this.saveConfigTimer) { clearTimeout(this.saveConfigTimer); this.saveConfigTimer = null; }
+    this.gradeColumns = [];
+    this.actPct = null;
+    this.actName = 'ACT';
+    this.evalPct = 20;
+    this.categories = [];
+    this.quizzesPct = 0;
+    this.talleresPct = 0;
+    this.actividadesPct = 0;
+    this.cdr.markForCheck();
+  }
+
+  /** Curso actual (null si falta algo). */
+  private currentConfigContext(): { teacherId: number; subjectName: string; grade: string; classroom: string; key: string } | null {
     const teacherId = this.currentTeacherId();
     const subjectName = this.selectedSubject || this.teacherSubjectName;
-    if (!teacherId || !subjectName || !this.selectedGrade || !this.selectedClassroom) {
+    if (!teacherId || !subjectName || !this.selectedGrade || !this.selectedClassroom) return null;
+    return {
+      teacherId, subjectName, grade: this.selectedGrade, classroom: this.selectedClassroom,
+      key: `${teacherId}|${subjectName}|${this.selectedGrade}|${this.selectedClassroom}`
+    };
+  }
+
+  /** Si hay un cambio de porcentajes esperando su guardado, lo envía YA (antes de cambiar de curso). */
+  private flushColumnConfig() {
+    if (!this.saveConfigTimer) return;
+    clearTimeout(this.saveConfigTimer);
+    this.saveConfigTimer = null;
+    this.persistColumnConfig(true);
+  }
+
+  loadColumnConfig() {
+    // Una respuesta tardía del curso anterior nunca debe pisar la del actual.
+    this.columnConfigSub?.unsubscribe();
+    this.columnConfigSub = null;
+    this.configContextKey = null;
+
+    const ctx = this.currentConfigContext();
+    if (!ctx) {
       this.gradeColumns = [];
       this.actPct = null;
       this.actName = 'ACT';
@@ -560,9 +612,10 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     }
 
     this.weightsReady = false;
-    this.gradeColumnConfigService.getConfig(teacherId, subjectName, this.selectedGrade, this.selectedClassroom)
+    this.columnConfigSub = this.gradeColumnConfigService.getConfig(ctx.teacherId, ctx.subjectName, ctx.grade, ctx.classroom)
       .subscribe({
         next: (config: GradeColumnConfigDto) => {
+          this.configContextKey = ctx.key;
           this.quizzesPct = config.quizzesPct || 0;
           this.talleresPct = config.talleresPct || 0;
           this.actividadesPct = config.actividadesPct || 0;
@@ -755,14 +808,19 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     this.cdr.markForCheck();
     // Guardado con pequeña espera para no golpear el servidor en cada tecla.
     if (this.saveConfigTimer) clearTimeout(this.saveConfigTimer);
-    this.saveConfigTimer = setTimeout(() => this.persistColumnConfig(recalculate), 600);
+    this.saveConfigTimer = setTimeout(() => {
+      this.saveConfigTimer = null;
+      this.persistColumnConfig(recalculate);
+    }, 600);
   }
 
   /** Guarda en el servidor: grupo ACT, categorías (nombre + %) y columnas agregadas. */
   private persistColumnConfig(recalculate: boolean) {
-    const teacherId = this.currentTeacherId();
-    const subjectName = this.selectedSubject || this.teacherSubjectName;
-    if (!teacherId || !subjectName || !this.selectedGrade || !this.selectedClassroom) return;
+    const ctx = this.currentConfigContext();
+    if (!ctx) return;
+    // Lo que hay en pantalla debe ser de ESTE curso; si no (se está cambiando de
+    // salón/materia o aún no cargó), no se guarda nada para no mezclar cursos.
+    if (ctx.key !== this.configContextKey) return;
 
     // Más de 100%: no se guarda nada y se avisa (una sola vez hasta que se corrija).
     if (this.pctOver) {
@@ -782,7 +840,7 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
       }))
     ];
     this.gradeColumnConfigService.saveConfig(
-      teacherId, subjectName, this.selectedGrade, this.selectedClassroom,
+      ctx.teacherId, ctx.subjectName, ctx.grade, ctx.classroom,
       entries, 0, 0, 0
     ).subscribe({
       next: () => { if (recalculate) this.saveAllNFinal(); },
@@ -1989,6 +2047,7 @@ loadTeacherSubjectsForGradeRange() {
   }
 
   flushSaves(): Promise<void> {
+    this.flushColumnConfig();
     for (const key of Array.from(this.gradeSaveTimers.keys())) {
       this.flushGradeKey(key);
     }

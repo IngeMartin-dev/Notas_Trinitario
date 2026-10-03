@@ -47,6 +47,11 @@ export const routes: Routes = [
     canActivate: [roleGuard(ADMIN_ONLY)]
   },
   {
+    path: 'promociones',
+    loadComponent: () => import('./promociones/promociones').then(m => m.Promociones),
+    canActivate: [roleGuard(ADMIN_ONLY)]
+  },
+  {
     path: 'recoveries',
     loadComponent: () => import('./recoveries/recoveries').then(m => m.Recoveries),
     canActivate: [roleGuard(TEACHER_OR_DIRECTOR)]

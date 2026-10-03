@@ -3,12 +3,12 @@ package com.notastrinitario.app.service;
 import com.notastrinitario.app.entity.Student;
 import com.notastrinitario.app.entity.Subject;
 import com.notastrinitario.app.entity.SubjectGrade;
-import com.notastrinitario.app.entity.BoletinDraft;
+import com.notastrinitario.app.entity.BoletinObjetivo;
 import com.notastrinitario.app.repository.StudentRepository;
 import com.notastrinitario.app.repository.SubjectGradeRepository;
 import com.notastrinitario.app.repository.SubjectRepository;
 import com.notastrinitario.app.repository.RecoveryDataRepository;
-import com.notastrinitario.app.repository.BoletinDraftRepository;
+import com.notastrinitario.app.repository.BoletinObjetivoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.beans.factory.annotation.Value;
 import java.io.File;
@@ -40,7 +40,7 @@ public class BoletinService {
     private final SubjectGradeRepository subjectGradeRepository;
     private final SubjectRepository subjectRepository;
     private final RecoveryDataRepository recoveryDataRepository;
-    private final BoletinDraftRepository boletinDraftRepository;
+    private final BoletinObjetivoRepository boletinObjetivoRepository;
     private final com.notastrinitario.app.repository.SchoolYearConfigRepository schoolYearConfigRepository;
 
     @Value("${app.institution.name}")
@@ -58,13 +58,13 @@ public class BoletinService {
             SubjectGradeRepository subjectGradeRepository,
             SubjectRepository subjectRepository,
             RecoveryDataRepository recoveryDataRepository,
-            BoletinDraftRepository boletinDraftRepository,
+            BoletinObjetivoRepository boletinObjetivoRepository,
             com.notastrinitario.app.repository.SchoolYearConfigRepository schoolYearConfigRepository) {
         this.studentRepository = studentRepository;
         this.subjectGradeRepository = subjectGradeRepository;
         this.subjectRepository = subjectRepository;
         this.recoveryDataRepository = recoveryDataRepository;
-        this.boletinDraftRepository = boletinDraftRepository;
+        this.boletinObjetivoRepository = boletinObjetivoRepository;
         this.schoolYearConfigRepository = schoolYearConfigRepository;
     }
 
@@ -1573,25 +1573,48 @@ public class BoletinService {
         };
     }
 
-    public BoletinDraft saveDraft(String grade, String classroom, Integer period, String schoolYear, String payload) {
-        BoletinDraft draft = boletinDraftRepository
-                .findFirstByGradeAndClassroomAndPeriodOrderByUpdatedAtDesc(grade, classroom, period)
-                .orElse(new BoletinDraft());
-        draft.setGrade(grade);
-        draft.setClassroom(classroom);
-        draft.setPeriod(period);
-        draft.setSchoolYear(schoolYear);
-        draft.setPayload(payload);
-        return boletinDraftRepository.save(draft);
+    // ─────────────────────────────────────────────────────────────────
+    // Objetivos predeterminados (reemplaza al antiguo "borrador")
+    // ─────────────────────────────────────────────────────────────────
+
+    /** Guarda (o reemplaza) los objetivos usados al generar un grado+salón+período. */
+    @org.springframework.transaction.annotation.Transactional
+    public BoletinObjetivo guardarObjetivos(String grade, String classroom, Integer period, String payload) {
+        BoletinObjetivo o = boletinObjetivoRepository
+                .findByGradeAndClassroomAndPeriod(grade, classroom, period)
+                .orElseGet(BoletinObjetivo::new);
+        o.setGrade(grade);
+        o.setClassroom(classroom);
+        o.setPeriod(period);
+        o.setPayload(payload);
+        return boletinObjetivoRepository.save(o);
     }
 
-    public List<BoletinDraft> getDrafts(String grade, String classroom) {
-        return boletinDraftRepository.findByGradeAndClassroomOrderByUpdatedAtDesc(grade, classroom);
+    /** Períodos que ya tienen objetivos guardados para el grado+salón. */
+    public List<BoletinObjetivo> listarObjetivos(String grade, String classroom) {
+        return boletinObjetivoRepository.findByGradeAndClassroomOrderByPeriodAsc(grade, classroom);
     }
 
-    public Optional<BoletinDraft> getLatestDraft(String grade, String classroom, Integer period) {
-        return boletinDraftRepository.findFirstByGradeAndClassroomAndPeriodOrderByUpdatedAtDesc(grade, classroom,
-                period);
+    public Optional<BoletinObjetivo> obtenerObjetivos(String grade, String classroom, Integer period) {
+        return boletinObjetivoRepository.findByGradeAndClassroomAndPeriod(grade, classroom, period);
+    }
+
+    /**
+     * Ubica en disco los PDF ya generados de un estudiante (uno por período,
+     * 1..4) dentro de "Boletines Generados/Periodo N/{grado}{salón}/". Se usa
+     * al promover a Grado 11º para copiarlos a "Promociones/".
+     * Debe llamarse ANTES de cambiarle el grado/salón al estudiante.
+     */
+    public java.util.Map<Integer, Path> localizarBoletinesDeEstudiante(Student student) {
+        java.util.Map<Integer, Path> resultado = new java.util.TreeMap<>();
+        if (student == null) return resultado;
+        String salonCarpeta = extraerNumeroGrado(student.getGrade()) + extraerLetraSalon(student.getClassGroup());
+        String archivo = nombreArchivoBoletin(student);
+        for (int p = 1; p <= 4; p++) {
+            Path f = Paths.get(OUT_DIR, "Periodo " + p, salonCarpeta, archivo);
+            if (Files.isRegularFile(f)) resultado.put(p, f);
+        }
+        return resultado;
     }
 
     private String getStudentGrade(Long studentId) {

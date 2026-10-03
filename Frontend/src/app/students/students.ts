@@ -68,6 +68,14 @@ export class Students implements OnInit {
     this.fetchStudents(grade, classroom);
   }
 
+  /** "Grado 1º" -> "primero", "Grado 2º" -> "segundo"... (para el mensaje de salón vacío). */
+  get selectedGradeWord(): string {
+    const nombres = ['', 'primero', 'segundo', 'tercero', 'cuarto', 'quinto', 'sexto',
+      'séptimo', 'octavo', 'noveno', 'décimo', 'once'];
+    const n = Number((this.selectedGrade || '').match(/\d+/)?.[0]);
+    return nombres[n] || (this.selectedGrade || '');
+  }
+
   private showLoading() {
     // Remove fade-out class if it exists to ensure smooth re-appearance
     const loadingElement = document.querySelector('.loading-indicator') as HTMLElement;

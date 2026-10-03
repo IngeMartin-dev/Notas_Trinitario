@@ -1,0 +1,82 @@
+<div class="pr-container">
+  <div class="page-header">
+    <h2><span class="material-icons">workspace_premium</span> Promociones</h2>
+    <p class="page-subtitle">
+      Estudiantes que terminaron Grado 11º. Sus boletines se conservan 5 años y después se borran automáticamente.
+    </p>
+  </div>
+
+  <div class="pr-filters">
+    <input type="text" class="pr-search" placeholder="Buscar por nombre o documento…" [(ngModel)]="busqueda">
+    <select class="pr-select" [(ngModel)]="anioFiltro">
+      <option [ngValue]="null">Todos los años</option>
+      @for (a of anios; track a) {
+        <option [ngValue]="a">Promoción {{ a }}</option>
+      }
+    </select>
+  </div>
+
+  @if (isLoading) {
+    <div class="pr-info">Cargando promociones…</div>
+  }
+  @if (errorMessage) {
+    <div class="pr-info pr-error">{{ errorMessage }}</div>
+  }
+
+  @if (!isLoading && !errorMessage && promociones.length === 0) {
+    <div class="pr-empty">
+      <span class="material-icons">school</span>
+      <h3>Aún no hay promociones</h3>
+      <p>Cuando el administrador adelante el año, los estudiantes de Grado 11º aparecerán aquí.</p>
+    </div>
+  }
+
+  @if (!isLoading && promociones.length > 0 && filtradas.length === 0) {
+    <div class="pr-info">Ningún estudiante coincide con la búsqueda.</div>
+  }
+
+  @if (filtradas.length > 0) {
+    <div class="pr-table-wrap">
+      <table class="pr-table">
+        <thead>
+          <tr>
+            <th>Estudiante</th>
+            <th>Documento</th>
+            <th>Grado / Salón</th>
+            <th>Promoción</th>
+            <th>Se borra el</th>
+            <th>Boletines</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (p of filtradas; track p.id) {
+            <tr>
+              <td><strong>{{ p.surname }}</strong> {{ p.name }}</td>
+              <td>{{ p.documentNumber || '-' }}</td>
+              <td>{{ p.grade }}{{ p.classGroup ? ' · ' + p.classGroup : '' }}</td>
+              <td>{{ p.academicYear }}</td>
+              <td>
+                {{ fecha(p.expiresAt) }}
+                <small class="pr-muted">(en {{ restante(p.daysLeft) }})</small>
+              </td>
+              <td>
+                @if (p.periodos.length === 0) {
+                  <span class="pr-muted">Sin boletines guardados</span>
+                } @else {
+                  <div class="pr-periods">
+                    @for (per of p.periodos; track per) {
+                      <button type="button" class="pr-period-btn" [disabled]="abriendo[p.id + '-' + per]"
+                              (click)="abrirBoletin(p, per)">
+                        Período {{ per }}
+                      </button>
+                    }
+                  </div>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

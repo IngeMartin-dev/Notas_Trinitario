@@ -61,6 +61,21 @@
             Materia {{ currentSubjectIndex + 1 }} de {{ subjects.length }}: {{ subjects[currentSubjectIndex] }}
           </p>
 
+@if (presetPeriods.length > 0) {
+            <div class="preset-objectives">
+              <button type="button" class="btn-preset" (click)="togglePresetMenu()">
+                🎯 Objetivos predeterminados
+              </button>
+              @if (showPresetMenu) {
+                <div class="preset-menu">
+                  @for (p of presetPeriods; track p) {
+                    <button type="button" class="preset-option" (click)="applyPreset(p)">{{ presetPeriodLabel(p) }}</button>
+                  }
+                </div>
+              }
+            </div>
+          }
+
 <div class="subject-indicators-card">
              <div class="subject-header">{{ subjects[currentSubjectIndex] }}</div>
              <div class="objective-field">
@@ -272,12 +287,6 @@
           </div>
 
           <div class="step-actions">
-            <button class="btn-drafts" (click)="showDrafts()">
-              📂 Guardados
-            </button>
-            <button class="btn-save-draft" (click)="saveDraft()">
-              💾 Guardar Borrador
-            </button>
             <button class="btn-next" (click)="initiateGenerate()">
               Generar Boletines
             </button>
@@ -373,73 +382,6 @@
               <div class="sig-card a11y-clickable" [class.selected]="selectedDirectorSignature === sig.path" role="button" tabindex="0" [attr.aria-label]="'Firma ' + sig.name" (click)="selectedDirectorSignature = sig.path" (keydown.enter)="selectedDirectorSignature = sig.path" (keydown.space)="selectedDirectorSignature = sig.path; $event.preventDefault()">
                 <div class="sig-img">
                   <img [src]="apiBaseUrl + sig.path" [alt]="sig.name" (error)="onImageError($event)">
-   <!-- VISTA DE BORRADORES -->
-   @if (showDraftsView) {
-     <div class="drafts-view fade-in">
-       <h3>📂 Borradores Guardados</h3>
-
-       <div class="drafts-filters">
-         <div class="filter-group">
-           <label>Grado:</label>
-           <select [(ngModel)]="draftGradeFilter" (change)="loadDrafts()">
-             <option value="">Seleccione un grado</option>
-             @for (grade of grades; track grade) {
-               <option [value]="grade">{{ grade }}</option>
-             }
-           </select>
-         </div>
-         <div class="filter-group">
-           <label>Salón:</label>
-           <select [(ngModel)]="draftClassroomFilter" (change)="loadDrafts()">
-             <option value="">Seleccione un salón</option>
-             @for (classroom of classrooms; track classroom) {
-               <option [value]="classroom">{{ classroom }}</option>
-             }
-           </select>
-         </div>
-       </div>
-
-       @if (isLoadingDrafts) {
-         <div class="loading-text">Cargando borradores...</div>
-       }
-
-       @if (!isLoadingDrafts && drafts.length === 0) {
-         <div class="empty-text">No hay borradores guardados para este grado y salón.</div>
-       }
-
-       @if (!isLoadingDrafts && drafts.length > 0) {
-         <div class="drafts-table-wrapper">
-           <table class="students-table">
-             <thead>
-               <tr><th>ID</th><th>Grado</th><th>Salón</th><th>Período</th><th>Año Escolar</th><th>Última actualización</th><th>Acciones</th></tr>
-             </thead>
-             <tbody>
-               @for (draft of drafts; track draft.id) {
-                 <tr>
-                   <td>{{ draft.id }}</td>
-                   <td>{{ draft.grade }}</td>
-                   <td>{{ draft.classroom }}</td>
-                   <td>{{ draft.period }}</td>
-                   <td>{{ draft.schoolYear || '-' }}</td>
-                   <td>{{ draft.updatedAt }}</td>
-                   <td>
-                     <button class="preview-btn" (click)="previewBoletin(draft.id)">👁️ Vista Previa</button>
-                     <button class="download-btn" (click)="downloadBoletin(draft.id)">📥 Descargar</button>
-                   </td>
-                 </tr>
-               }
-             </tbody>
-           </table>
-         </div>
-       }
-
-       <div class="drafts-actions">
-         <button class="back-btn" (click)="backToForm()">
-           ← Volver al formulario
-         </button>
-       </div>
-     </div>
-   }
  </div>
                 <div class="sig-name">{{ sig.name }}</div>
               </div>

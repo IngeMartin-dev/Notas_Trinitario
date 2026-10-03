@@ -1,7 +1,7 @@
 package com.notastrinitario.app.controller;
 
 import com.notastrinitario.app.entity.Student;
-import com.notastrinitario.app.entity.BoletinDraft;
+import com.notastrinitario.app.entity.BoletinObjetivo;
 import com.notastrinitario.app.entity.User;
 import com.notastrinitario.app.repository.StudentRepository;
 import com.notastrinitario.app.service.BoletinService;
@@ -372,59 +372,62 @@ public class BoletinController {
     }
 
     // ─────────────────────────────────────────────────────────────────
-    // POST /api/boletines/drafts  – guarda un borrador del formulario
+    // Objetivos predeterminados (sustituye al antiguo "borrador").
+    // POST: se llama al iniciar la generación de un boletín para guardar
+    //       los objetivos escritos a mano. GET: lista los períodos que ya
+    //       tienen objetivos / devuelve los de un período.
     // ─────────────────────────────────────────────────────────────────
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
-    @PostMapping("/drafts")
-    public ResponseEntity<?> saveDraft(@RequestBody Map<String, Object> request) {
+    @PostMapping("/objetivos-predeterminados")
+    public ResponseEntity<?> guardarObjetivos(@RequestBody Map<String, Object> request) {
         try {
             String grade = str(request.get("grade"));
             String classroom = str(request.get("classroom"));
             Integer period = toInt(request.get("period"));
-            String schoolYear = str(request.get("schoolYear"));
             String payload = request.get("payload") != null ? request.get("payload").toString() : "{}";
 
             if (grade == null || classroom == null || period == null) {
                 return ResponseEntity.badRequest()
                         .body(Map.of("success", false, "message", "Faltan parámetros: grade, classroom o period"));
             }
-
-            BoletinDraft draft = boletinService.saveDraft(grade, classroom, period, schoolYear, payload);
-            return ResponseEntity.ok(Map.of("success", true, "draftId", draft.getId()));
+            BoletinObjetivo saved = boletinService.guardarObjetivos(grade, classroom, period, payload);
+            return ResponseEntity.ok(Map.of("success", true, "id", saved.getId()));
         } catch (Exception e) {
-            e.printStackTrace();
             return ResponseEntity.badRequest()
-                    .body(Map.of("success", false, "message", "Error guardando borrador: " + e.getMessage()));
+                    .body(Map.of("success", false, "message", "Error guardando objetivos: " + e.getMessage()));
         }
     }
 
-    // ─────────────────────────────────────────────────────────────────
-    // GET /api/boletines/drafts  – lista borradores por grado y salón
-    // ─────────────────────────────────────────────────────────────────
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
-    @GetMapping("/drafts")
-    public ResponseEntity<List<Map<String, Object>>> getDrafts(
+    @GetMapping("/objetivos-predeterminados")
+    public ResponseEntity<List<Map<String, Object>>> listarObjetivos(
             @RequestParam String grade,
             @RequestParam String classroom) {
+        List<Map<String, Object>> result = new ArrayList<>();
         try {
-            List<com.notastrinitario.app.entity.BoletinDraft> drafts =
-                    boletinService.getDrafts(grade, classroom);
-            List<Map<String, Object>> result = new ArrayList<>();
-            for (com.notastrinitario.app.entity.BoletinDraft d : drafts) {
+            for (BoletinObjetivo o : boletinService.listarObjetivos(grade, classroom)) {
                 Map<String, Object> item = new LinkedHashMap<>();
-                item.put("id", d.getId());
-                item.put("grade", d.getGrade());
-                item.put("classroom", d.getClassroom());
-                item.put("period", d.getPeriod());
-                item.put("schoolYear", d.getSchoolYear());
-                item.put("updatedAt", d.getUpdatedAt() != null ? d.getUpdatedAt().toString() : null);
+                item.put("period", o.getPeriod());
+                item.put("updatedAt", o.getUpdatedAt() != null ? o.getUpdatedAt().toString() : null);
                 result.add(item);
             }
-            return ResponseEntity.ok(result);
         } catch (Exception e) {
-            e.printStackTrace();
-            return ResponseEntity.ok(new ArrayList<>());
+            // Si algo falla se devuelve lista vacía: el botón simplemente no mostrará períodos.
         }
+        return ResponseEntity.ok(result);
+    }
+
+    @PreAuthorize("hasAnyRole('ADMIN','TEACHER','DIRECTOR_DE_GRUPO')")
+    @GetMapping("/objetivos-predeterminados/{period}")
+    public ResponseEntity<?> obtenerObjetivos(
+            @PathVariable Integer period,
+            @RequestParam String grade,
+            @RequestParam String classroom) {
+        return boletinService.obtenerObjetivos(grade, classroom, period)
+                .<ResponseEntity<?>>map(o -> ResponseEntity.ok(Map.of(
+                        "period", o.getPeriod(),
+                        "payload", o.getPayload())))
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     // ─────────────────────────────────────────────────────────────────

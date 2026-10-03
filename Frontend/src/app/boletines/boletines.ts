@@ -83,12 +83,10 @@ export class Boletines implements OnInit, OnDestroy {
   currentJobId: string | null = null;
   private jobsSub?: Subscription;
 
-  showDraftsView: boolean = false;
-  drafts: any[] = [];
-  isLoadingDrafts: boolean = false;
-  selectedDraftId?: number;
-  draftGradeFilter: string = '';
-  draftClassroomFilter: string = '';
+  // Objetivos predeterminados: períodos de este grado+salón cuyos objetivos
+  // ya quedaron guardados al generar sus boletines.
+  presetPeriods: number[] = [];
+  showPresetMenu: boolean = false;
 
   lostAreasPreview: { studentName: string; subjects: string[] }[] = [];
 
@@ -159,20 +157,15 @@ export class Boletines implements OnInit, OnDestroy {
   private loadPreviousPeriodData() {
     if (!this.selectedGrade || !this.selectedClassroom || this.selectedPeriod <= 1) return;
 
-    this.http.get<any>('http://localhost:8080/api/boletines/drafts', {
-      params: {
-        grade: this.selectedGrade,
-        classroom: this.selectedClassroom
-      }
+    this.http.get<any>(`http://localhost:8080/api/boletines/objetivos-predeterminados/${this.selectedPeriod - 1}`, {
+      params: { grade: this.selectedGrade, classroom: this.selectedClassroom }
     }).subscribe({
-      next: (drafts: any[]) => {
-        const previousDraft = drafts.find(d => d.period === this.selectedPeriod - 1);
-        if (!previousDraft || !previousDraft.payload) return;
-
+      next: (res: any) => {
+        if (!res || !res.payload) return;
         try {
-          const payload = JSON.parse(previousDraft.payload);
-          // El borrador guarda estos dos campos como diccionarios
-          // { [studentId]: nota }, tal como los produce saveDraft().
+          const payload = JSON.parse(res.payload);
+          // Se guardan como diccionarios { [studentId]: nota }, tal como los
+          // produce savePresetAfterGeneration().
           const compSocialDict = payload.studentCompSocialRating || {};
           const valAcudienteDict = payload.studentValoracionAcudiente || {};
 
@@ -191,11 +184,106 @@ export class Boletines implements OnInit, OnDestroy {
               this.studentValoracionAcudiente[id] = val;
             }
           });
+          this.cdr.detectChanges();
         } catch (e) {
           // ignore parse errors
         }
       },
       error: () => {}
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Objetivos predeterminados (reemplaza al antiguo "Guardar borrador")
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** Pide los períodos que ya tienen objetivos guardados para este grado+salón. */
+  loadPresetPeriods() {
+    this.presetPeriods = [];
+    this.showPresetMenu = false;
+    if (!this.selectedGrade || !this.selectedClassroom) return;
+    const grade = this.selectedGrade;
+    const classroom = this.selectedClassroom;
+    this.http.get<{ period: number }[]>('http://localhost:8080/api/boletines/objetivos-predeterminados', {
+      params: { grade, classroom }
+    }).subscribe({
+      next: (list) => {
+        // Evita aplicar una respuesta vieja si el usuario ya cambió de salón.
+        if (grade !== this.selectedGrade || classroom !== this.selectedClassroom) return;
+        this.presetPeriods = (list || []).map(i => i.period).sort((x, y) => x - y);
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.presetPeriods = [];
+        this.cdr.detectChanges();
+      }
+    });
+  }
+
+  presetPeriodLabel(period: number): string {
+    const nombres = ['Primer', 'Segundo', 'Tercer', 'Cuarto'];
+    return (nombres[period - 1] || ('Período ' + period)) + ' periodo';
+  }
+
+  togglePresetMenu() {
+    this.showPresetMenu = !this.showPresetMenu;
+  }
+
+  /** Carga en el formulario TODOS los objetivos guardados de ese período. */
+  applyPreset(period: number) {
+    this.showPresetMenu = false;
+    if (!this.selectedGrade || !this.selectedClassroom) return;
+    this.http.get<any>(`http://localhost:8080/api/boletines/objetivos-predeterminados/${period}`, {
+      params: { grade: this.selectedGrade, classroom: this.selectedClassroom }
+    }).subscribe({
+      next: (res: any) => {
+        try {
+          const payload = JSON.parse(res.payload || '{}');
+          const objectives: { [subject: string]: string } = payload.objectives || {};
+          let aplicados = 0;
+          for (const subject of this.subjects) {
+            if (objectives[subject] != null && String(objectives[subject]).trim() !== '') {
+              this.groupObjectives[subject] = objectives[subject];
+              aplicados++;
+            }
+          }
+          if (payload.compSocialObjetivo) {
+            this.compSocialObjetivo = payload.compSocialObjetivo;
+            aplicados++;
+          }
+          this.cdr.detectChanges();
+          if (aplicados === 0) {
+            this.dialogService.alert('Ese período no tiene objetivos que coincidan con las materias actuales.', 'Objetivos predeterminados');
+          }
+        } catch {
+          this.dialogService.alert('No se pudieron leer los objetivos guardados.', 'Error');
+        }
+      },
+      error: () => this.dialogService.alert('No se pudieron cargar los objetivos predeterminados.', 'Error')
+    });
+  }
+
+  /** Guarda los objetivos escritos a mano justo cuando se inicia la generación. */
+  private savePresetAfterGeneration() {
+    const objectives: { [subject: string]: string } = {};
+    for (const subject of this.subjects) {
+      const text = (this.groupObjectives[subject] || '').trim();
+      if (text) objectives[subject] = text;
+    }
+    const payload = {
+      objectives,
+      compSocialObjetivo: this.compSocialObjetivo || '',
+      studentCompSocialRating: this.studentCompSocialRating,
+      studentValoracionAcudiente: this.studentValoracionAcudiente
+    };
+    this.http.post('http://localhost:8080/api/boletines/objetivos-predeterminados', {
+      grade: this.selectedGrade,
+      classroom: this.selectedClassroom,
+      period: this.selectedPeriod,
+      payload: JSON.stringify(payload)
+    }).subscribe({
+      next: () => this.loadPresetPeriods(),
+      error: (err) => console.error('No se pudieron guardar los objetivos predeterminados', err)
     });
   }
 
@@ -395,6 +483,7 @@ export class Boletines implements OnInit, OnDestroy {
           this.students = data.sort((a, b) => (a.surname || '').localeCompare(b.surname || ''));
           this.initializeData();
           this.loadSubjects();
+          this.loadPresetPeriods();
           this.loadLostAreas();
           this.cdr.detectChanges();
         },
@@ -579,6 +668,7 @@ export class Boletines implements OnInit, OnDestroy {
         // aparezca en cualquier pantalla sin esperar al próximo sondeo.
         this.generationService.upsertJobLocal(job);
         this.currentJobId = job.jobId;
+        this.savePresetAfterGeneration();
         this.watchJob(job.jobId);
       },
       error: (err) => {
@@ -660,28 +750,6 @@ export class Boletines implements OnInit, OnDestroy {
       });
   }
 
-  /** Abre un blob de PDF ya en mano (lo usa la vista de Borradores, que
-   *  regenera un boletín puntual vía POST /generar síncrono — no pasa por
-   *  el sistema de jobs, así que necesita su propio helper). */
-  private openBlobPreview(blob: Blob, fileName: string) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.target = '_blank';
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-  }
-
-  /** Descarga un blob de PDF ya en mano (mismo caso de uso que arriba). */
-  private saveBlobDownload(blob: Blob, fileName: string) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 100);
-  }
-
   onSignatureUpload(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
@@ -755,169 +823,7 @@ export class Boletines implements OnInit, OnDestroy {
     this.currentGeneratingIndex = -1;
     this.generationProgress = 0;
     this.showSignaturePanel = false;
-    this.showDraftsView = false;
     this.currentStep = 'subjectIndicators';
     this.currentSubjectIndex = 0;
-  }
-
-  showDrafts() {
-    this.showDraftsView = true;
-    this.showFormView = false;
-    this.showSignaturePanel = false;
-    this.draftGradeFilter = this.selectedGrade;
-    this.draftClassroomFilter = this.selectedClassroom;
-    this.loadDrafts();
-  }
-
-  loadDrafts() {
-    if (!this.draftGradeFilter || !this.draftClassroomFilter) {
-      this.drafts = [];
-      return;
-    }
-    this.isLoadingDrafts = true;
-    this.http.get<any[]>('http://localhost:8080/api/boletines/drafts', {
-      params: {
-        grade: this.draftGradeFilter,
-        classroom: this.draftClassroomFilter
-      }
-    }).subscribe({
-      next: (data) => {
-        this.drafts = data || [];
-        this.isLoadingDrafts = false;
-        this.cdr.detectChanges();
-      },
-      error: (err) => {
-        console.error('Error cargando borradores', err);
-        this.drafts = [];
-        this.isLoadingDrafts = false;
-        this.cdr.detectChanges();
-      }
-    });
-  }
-
-  saveDraft() {
-    if (!this.selectedGrade || !this.selectedClassroom || !this.selectedPeriod) {
-      this.dialogService.alert('Seleccione grado, salón y período antes de guardar.', 'Dato faltante');
-      return;
-    }
-    const payload = {
-      grade: this.selectedGrade,
-      classroom: this.selectedClassroom,
-      period: this.selectedPeriod,
-      schoolYear: this.selectedSchoolYear,
-      studentSubjectIndicators: this.getPayloadStudentIndicators(),
-      compSocialObjetivo: this.compSocialObjetivo,
-      studentCompSocialRating: this.studentCompSocialRating,
-      studentCompSocialIndicators: this.studentCompSocialIndicators,
-      studentValoracionAcudiente: this.studentValoracionAcudiente,
-      directorSignature: this.selectedDirectorSignature,
-      currentStep: this.currentStep,
-      currentSubjectIndex: this.currentSubjectIndex
-    };
-    this.http.post('http://localhost:8080/api/boletines/drafts', {
-      grade: this.selectedGrade,
-      classroom: this.selectedClassroom,
-      period: this.selectedPeriod,
-      schoolYear: this.selectedSchoolYear,
-      payload: JSON.stringify(payload)
-    }).subscribe({
-      next: (res: any) => {
-        this.dialogService.alert('Borrador guardado correctamente.', 'Borrador');
-        if (!this.showDraftsView) {
-          this.showDrafts();
-        } else {
-          this.loadDrafts();
-        }
-      },
-      error: (err) => {
-        console.error('Error guardando borrador', err);
-        this.dialogService.alert('Error al guardar el borrador.', 'Error');
-      }
-    });
-  }
-
-  loadDraft(draftId: number) {
-    this.http.get<any>('http://localhost:8080/api/students', { params: { id: draftId } }).subscribe(); // no usado directo
-  }
-
-  getPayloadStudentIndicators(): any[] {
-    const result: any[] = [];
-    for (const student of this.students) {
-      const indicators = this.studentIndicators[student.id] || {};
-      for (const subject of this.subjects) {
-        const ind = indicators[subject] || {};
-        const payload: any = {
-          studentId: student.id,
-          subjectName: subject,
-          ih: ind.ih ?? null,
-          fa: ind.fa ?? null,
-          faa: ind.faa ?? null
-        };
-        if (subject === 'Valoracion Acudiente') {
-          payload.nota = this.studentValoracionAcudiente[student.id] ?? 0;
-        }
-        result.push(payload);
-      }
-    }
-    return result;
-  }
-
-  async previewBoletin(studentId: number) {
-    if (!this.selectedGrade || !this.selectedClassroom || !this.selectedPeriod) return;
-    const student = this.students.find(s => s.id === studentId);
-    if (!student) return;
-    const payload = this.buildBoletinPayload(student);
-    try {
-      const blob = await this.http.post('http://localhost:8080/api/boletines/generar', payload, { responseType: 'blob' }).toPromise();
-      this.openBlobPreview(blob as Blob, `boletin_${student.surname}_${student.name}.pdf`);
-    } catch (err: any) {
-      this.dialogService.alert('Error generando vista previa: ' + (err.error?.error || err.message || 'Error desconocido'), 'Error');
-    }
-  }
-
-  async downloadBoletin(studentId: number) {
-    if (!this.selectedGrade || !this.selectedClassroom || !this.selectedPeriod) return;
-    const student = this.students.find(s => s.id === studentId);
-    if (!student) return;
-    const payload = this.buildBoletinPayload(student);
-    try {
-      const blob = await this.http.post('http://localhost:8080/api/boletines/generar', payload, { responseType: 'blob' }).toPromise();
-      this.saveBlobDownload(blob as Blob, `boletin_${student.surname}_${student.name}.pdf`);
-    } catch (err: any) {
-      this.dialogService.alert('Error descargando boletín: ' + (err.error?.error || err.message || 'Error desconocido'), 'Error');
-    }
-  }
-
-  private buildBoletinPayload(student: any) {
-    const subjectsData = this.getPayloadStudentIndicators().filter(ind => ind.studentId === student.id);
-    const directorSignature = this.selectedDirectorSignature || '';
-    const csIndicators = this.studentCompSocialIndicators[student.id];
-    const compSocialIndicadores = csIndicators
-      ? `IH: ${csIndicators.ih ?? 0}, FA: ${csIndicators.fa ?? 0}, FAA: ${csIndicators.faa ?? 0}`
-      : '';
-
-    const valoracionAcudiente = this.studentValoracionAcudiente[student.id] ?? 0;
-
-    return {
-      studentId: student.id,
-      grade: this.selectedGrade,
-      classroom: this.selectedClassroom,
-      period: this.selectedPeriod,
-      nLista: this.students.findIndex(s => s.id === student.id) + 1,
-      schoolYear: this.selectedSchoolYear,
-      studentSubjectIndicators: subjectsData,
-      objetivoPeriodo: '',
-      valoracionAcudiente: valoracionAcudiente,
-      valoracionAcudienteNota: valoracionAcudiente,
-      compSocial: this.studentCompSocialRating[student.id] ?? 0,
-      compSocialIndicadores: compSocialIndicadores,
-      compSocialObjetivo: this.compSocialObjetivo || '',
-      directorSignature: directorSignature,
-      leftSignature: null
-    };
-  }
-
-  private get selectedSchoolYear(): string {
-    return String(new Date().getFullYear());
   }
 }

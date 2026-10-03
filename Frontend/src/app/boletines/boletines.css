@@ -1220,3 +1220,18 @@
 .lost-areas-subjects {
   color: var(--danger);
 }
+
+/* Objetivos predeterminados */
+.preset-objectives { position: relative; margin: 0 0 12px; display: flex; justify-content: flex-end; }
+.btn-preset {
+  background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; border-radius: 8px;
+  padding: 8px 14px; font-weight: 600; cursor: pointer;
+}
+.btn-preset:hover { background: #e0e7ff; }
+.preset-menu {
+  position: absolute; top: 100%; right: 0; margin-top: 6px; z-index: 20; min-width: 190px;
+  background: #fff; border: 1px solid #d1d5db; border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,.15);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.preset-option { text-align: left; background: transparent; border: 0; padding: 10px 14px; cursor: pointer; color: #111827; }
+.preset-option:hover { background: #f3f4f6; }

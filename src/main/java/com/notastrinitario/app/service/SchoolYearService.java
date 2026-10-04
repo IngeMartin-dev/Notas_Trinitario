@@ -220,6 +220,7 @@ public class SchoolYearService {
                 pendiente.put("studentId", s.getId());
                 pendiente.put("name", s.getName());
                 pendiente.put("surname", s.getSurname());
+                pendiente.put("grade", s.getGrade());
                 pendiente.put("newGrade", s.getGrade());
                 resultado.pendientesDeOrganizar.add(pendiente);
             }

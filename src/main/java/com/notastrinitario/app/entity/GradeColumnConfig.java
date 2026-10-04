@@ -8,8 +8,8 @@ import java.time.LocalDateTime;
  * Configuración de columnas de calificaciones (Quiz/Taller/Actividad) y sus
  * porcentajes, para un profesor + materia + grado + salón concretos.
  *
- * Es INDIVIDUAL por salón: dos salones distintos del mismo profesor y
- * materia tienen cada uno su propia configuración, tal como se pidió.
+ * Es INDIVIDUAL por salón Y por período: dos salones distintos (o dos períodos
+ * distintos del mismo salón) tienen cada uno su propia configuración.
  *
  * Las columnas en sí (nombre + tipo) se guardan como JSON en `columnsJson`,
  * ej: [{"id":"c1","name":"Quiz 1","type":"QUIZ"},
@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "grade_column_configs", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"teacher_id", "subject_name", "grade", "classroom"})
+        @UniqueConstraint(columnNames = {"teacher_id", "subject_name", "grade", "classroom", "period"})
 })
 public class GradeColumnConfig implements Serializable {
 
@@ -44,6 +44,9 @@ public class GradeColumnConfig implements Serializable {
 
     @Column(name = "classroom", nullable = false)
     private String classroom;
+
+    @Column(name = "period")
+    private Integer period;
 
     @Column(name = "columns_json", columnDefinition = "TEXT")
     private String columnsJson = "[]";
@@ -77,6 +80,9 @@ public class GradeColumnConfig implements Serializable {
 
     public String getClassroom() { return classroom; }
     public void setClassroom(String classroom) { this.classroom = classroom; }
+
+    public Integer getPeriod() { return period; }
+    public void setPeriod(Integer period) { this.period = period; }
 
     public String getColumnsJson() { return columnsJson; }
     public void setColumnsJson(String columnsJson) { this.columnsJson = columnsJson; }

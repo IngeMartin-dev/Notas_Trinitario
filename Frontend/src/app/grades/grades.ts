@@ -257,6 +257,8 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
 
         if (!this.availablePeriods.includes(this.selectedPeriod)) {
           this.selectedPeriod = Math.max(...this.availablePeriods);
+          this.resetColumnConfigState();
+          this.loadColumnConfig();
           this.loadGrades();
         }
       }
@@ -280,6 +282,8 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
 
                 if (!this.availablePeriods.includes(this.selectedPeriod)) {
                   this.selectedPeriod = Math.max(...this.availablePeriods);
+                  this.resetColumnConfigState();
+                  this.loadColumnConfig();
                   this.loadGrades();
                 }
               });
@@ -523,10 +527,10 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     // Go to the selected period and load its saved grades/recovery data
     this.selectedPeriod = newPeriod;
     this.dynamicGradeValues = {};
-    if (this.gradeColumns.length > 0) {
-      this.weightsReady = false;
-      this.loadDynamicGradeValues();
-    }
+    // Los porcentajes son de cada período: se vacían los del anterior y se
+    // cargan los de este (cada período guarda los suyos).
+    this.resetColumnConfigState();
+    this.loadColumnConfig();
     this.loadGrades();
     this.loadRecoveryData();
   }
@@ -576,13 +580,13 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
   }
 
   /** Curso actual (null si falta algo). */
-  private currentConfigContext(): { teacherId: number; subjectName: string; grade: string; classroom: string; key: string } | null {
+  private currentConfigContext(): { teacherId: number; subjectName: string; grade: string; classroom: string; period: number; key: string } | null {
     const teacherId = this.currentTeacherId();
     const subjectName = this.selectedSubject || this.teacherSubjectName;
-    if (!teacherId || !subjectName || !this.selectedGrade || !this.selectedClassroom) return null;
+    if (!teacherId || !subjectName || !this.selectedGrade || !this.selectedClassroom || !this.selectedPeriod) return null;
     return {
-      teacherId, subjectName, grade: this.selectedGrade, classroom: this.selectedClassroom,
-      key: `${teacherId}|${subjectName}|${this.selectedGrade}|${this.selectedClassroom}`
+      teacherId, subjectName, grade: this.selectedGrade, classroom: this.selectedClassroom, period: this.selectedPeriod,
+      key: `${teacherId}|${subjectName}|${this.selectedGrade}|${this.selectedClassroom}|${this.selectedPeriod}`
     };
   }
 
@@ -612,7 +616,7 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
     }
 
     this.weightsReady = false;
-    this.columnConfigSub = this.gradeColumnConfigService.getConfig(ctx.teacherId, ctx.subjectName, ctx.grade, ctx.classroom)
+    this.columnConfigSub = this.gradeColumnConfigService.getConfig(ctx.teacherId, ctx.subjectName, ctx.grade, ctx.classroom, ctx.period)
       .subscribe({
         next: (config: GradeColumnConfigDto) => {
           this.configContextKey = ctx.key;
@@ -840,7 +844,7 @@ gradesData: { [studentId: number]: { [noteIndex: number]: number | null } } = {}
       }))
     ];
     this.gradeColumnConfigService.saveConfig(
-      ctx.teacherId, ctx.subjectName, ctx.grade, ctx.classroom,
+      ctx.teacherId, ctx.subjectName, ctx.grade, ctx.classroom, ctx.period,
       entries, 0, 0, 0
     ).subscribe({
       next: () => { if (recalculate) this.saveAllNFinal(); },

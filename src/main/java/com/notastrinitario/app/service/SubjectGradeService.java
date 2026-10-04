@@ -152,8 +152,8 @@ public class SubjectGradeService {
         Student studentForConfig = studentRepository.findById(studentId).orElse(null);
         if (studentForConfig != null && teacherId != null) {
             Optional<GradeColumnConfig> configOpt = gradeColumnConfigRepository
-                    .findByTeacherIdAndSubjectNameAndGradeAndClassroom(
-                            teacherId, subjectName, studentForConfig.getGrade(), studentForConfig.getClassGroup());
+                    .findByTeacherIdAndSubjectNameAndGradeAndClassroomAndPeriod(
+                            teacherId, subjectName, studentForConfig.getGrade(), studentForConfig.getClassGroup(), period);
             if (configOpt.isPresent()) {
                 return calculateWeightedFinalGrade(grades, configOpt.get());
             }
@@ -410,25 +410,26 @@ public class SubjectGradeService {
     }
 
     /** Config de columnas guardada para un profesor+materia+grado+salón (o null si no existe). */
-    public GradeColumnConfig getColumnConfig(Long teacherId, String subjectName, String grade, String classroom) {
+    public GradeColumnConfig getColumnConfig(Long teacherId, String subjectName, String grade, String classroom, Integer period) {
         return gradeColumnConfigRepository
-                .findByTeacherIdAndSubjectNameAndGradeAndClassroom(teacherId, subjectName, grade, classroom)
+                .findByTeacherIdAndSubjectNameAndGradeAndClassroomAndPeriod(teacherId, subjectName, grade, classroom, period)
                 .orElse(null);
     }
 
     /** Crea o actualiza la configuración de columnas de un profesor+materia+grado+salón. */
     @Transactional
     public GradeColumnConfig saveColumnConfig(Long teacherId, String subjectName, String grade, String classroom,
-                                               String columnsJson, Integer quizzesPct, Integer talleresPct,
+                                               Integer period, String columnsJson, Integer quizzesPct, Integer talleresPct,
                                                Integer actividadesPct, com.notastrinitario.app.entity.User teacher) {
         GradeColumnConfig config = gradeColumnConfigRepository
-                .findByTeacherIdAndSubjectNameAndGradeAndClassroom(teacherId, subjectName, grade, classroom)
+                .findByTeacherIdAndSubjectNameAndGradeAndClassroomAndPeriod(teacherId, subjectName, grade, classroom, period)
                 .orElseGet(GradeColumnConfig::new);
 
         config.setTeacher(teacher);
         config.setSubjectName(subjectName);
         config.setGrade(grade);
         config.setClassroom(classroom);
+        config.setPeriod(period);
         config.setColumnsJson(columnsJson != null ? columnsJson : "[]");
         config.setQuizzesPct(quizzesPct != null ? quizzesPct : 0);
         config.setTalleresPct(talleresPct != null ? talleresPct : 0);

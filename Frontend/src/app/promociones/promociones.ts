@@ -16,7 +16,8 @@ export class Promociones implements OnInit {
   private dialogService = inject(DialogService);
 
   promociones: PromocionDto[] = [];
-  anioFiltro: number | null = null; // null = todos
+  /** Promoción (año) abierta; null = se muestran los recuadros de años. */
+  anioSeleccionado: number | null = null;
   busqueda = '';
   isLoading = false;
   errorMessage = '';
@@ -43,14 +44,31 @@ export class Promociones implements OnInit {
     });
   }
 
-  get anios(): number[] {
-    return Array.from(new Set(this.promociones.map(p => p.academicYear))).sort((a, b) => b - a);
+  /** Un recuadro por año con su cantidad de egresados. */
+  get anios(): { anio: number; total: number; conBoletines: number }[] {
+    const mapa = new Map<number, PromocionDto[]>();
+    for (const p of this.promociones) {
+      if (!mapa.has(p.academicYear)) mapa.set(p.academicYear, []);
+      mapa.get(p.academicYear)!.push(p);
+    }
+    return Array.from(mapa.entries())
+      .map(([anio, lista]) => ({ anio, total: lista.length, conBoletines: lista.filter(x => x.periodos.length > 0).length }))
+      .sort((a, b) => b.anio - a.anio);
   }
 
-  get filtradas(): PromocionDto[] {
+  abrirAnio(anio: number) {
+    this.anioSeleccionado = anio;
+    this.busqueda = '';
+  }
+
+  volver() {
+    this.anioSeleccionado = null;
+  }
+
+  get estudiantesDelAnio(): PromocionDto[] {
     const q = this.busqueda.trim().toLowerCase();
     return this.promociones.filter(p =>
-      (this.anioFiltro == null || p.academicYear === this.anioFiltro) &&
+      p.academicYear === this.anioSeleccionado &&
       (!q || `${p.name} ${p.surname} ${p.documentNumber || ''}`.toLowerCase().includes(q))
     );
   }

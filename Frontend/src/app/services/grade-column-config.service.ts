@@ -34,18 +34,18 @@ export class GradeColumnConfigService {
   private readonly http = inject(HttpClient);
   private readonly API_BASE = 'http://localhost:8080/api/grade-columns';
 
-  getConfig(teacherId: number, subjectName: string, grade: string, classroom: string): Observable<GradeColumnConfigDto> {
+  getConfig(teacherId: number, subjectName: string, grade: string, classroom: string, period: number): Observable<GradeColumnConfigDto> {
     return this.http.get<GradeColumnConfigDto>(this.API_BASE, {
-      params: { teacherId: String(teacherId), subjectName, grade, classroom }
+      params: { teacherId: String(teacherId), subjectName, grade, classroom, period: String(period) }
     });
   }
 
   saveConfig(
-    teacherId: number, subjectName: string, grade: string, classroom: string,
+    teacherId: number, subjectName: string, grade: string, classroom: string, period: number,
     columns: GradeColumn[], quizzesPct: number, talleresPct: number, actividadesPct: number
   ): Observable<GradeColumnConfigDto> {
     return this.http.post<GradeColumnConfigDto>(this.API_BASE, {
-      teacherId, subjectName, grade, classroom,
+      teacherId, subjectName, grade, classroom, period,
       columnsJson: JSON.stringify(columns),
       quizzesPct, talleresPct, actividadesPct
     });

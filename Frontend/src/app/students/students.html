@@ -16,6 +16,15 @@
                 {{ classroom }}
               </button>
             }
+            @if (sinSalonCount(grade) > 0) {
+              <button
+                class="classroom-btn sin-salon-btn"
+                [class.selected]="sinSalonGrade === grade"
+                (click)="selectSinSalon(grade)"
+              >
+                Sin salón ({{ sinSalonCount(grade) }})
+              </button>
+            }
           </div>
         </div>
       }
@@ -23,6 +32,37 @@
   </div>
 
   <div class="right-content">
+    @if (sinSalonGrade) {
+      <div class="table-container">
+        <div class="table-header">
+          <h3>{{ sinSalonGrade }} · Estudiantes sin salón</h3>
+        </div>
+        <p class="sin-salon-help">Pulsa A o B junto a cada estudiante: pasa al instante a ese salón.</p>
+        <table class="students-table">
+          <thead>
+            <tr>
+              <th class="number-column">#</th>
+              <th>Nombre Completo</th>
+              <th>Numero de Identidad</th>
+              <th class="actions-column">Asignar salón</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (student of sinSalonDelGrado; track student.id; let i = $index) {
+              <tr>
+                <td class="number-column">{{ i + 1 }}</td>
+                <td>{{ student.surname }} {{ student.name }}</td>
+                <td>{{ student.documentNumber || 'No proporcionado' }}</td>
+                <td class="actions-cell">
+                  <button type="button" class="salon-pick-btn" [disabled]="asignando[student.id]" (click)="asignarSalon(student, 'A')">A</button>
+                  <button type="button" class="salon-pick-btn" [disabled]="asignando[student.id]" (click)="asignarSalon(student, 'B')">B</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
     @if (isLoading) {
       <div class="loading-indicator">
         <div class="spinner"></div>
@@ -99,7 +139,7 @@
       </div>
     }
 
-    @if (!selectedGrade || !selectedClassroom) {
+    @if ((!selectedGrade || !selectedClassroom) && !sinSalonGrade) {
       <div class="students-placeholder">
         <div class="placeholder-content">
           <h3>Selecciona un grado y salón</h3>
@@ -163,6 +203,25 @@
               <input type="text" id="editStudentDocument" name="documentNumber"
                 [(ngModel)]="studentToEdit.documentNumber" autocomplete="off"
                 placeholder="Ingrese el numero de identificacion">
+            </div>
+            <div class="form-group">
+              <label for="editStudentGrade">Grado:</label>
+              <select id="editStudentGrade" name="grade" [(ngModel)]="studentToEdit.grade">
+                @for (g of grades; track g) {
+                  <option [value]="g">{{ g }}</option>
+                }
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="editStudentClassGroup">Salón:</label>
+              <select id="editStudentClassGroup" name="classGroup" [(ngModel)]="studentToEdit.classGroup">
+                @if (!studentToEdit.classGroup) {
+                  <option value="" disabled>Sin salón</option>
+                }
+                @for (c of classrooms; track c) {
+                  <option [value]="c">{{ c }}</option>
+                }
+              </select>
             </div>
             <div class="modal-actions">
               <button type="button" class="cancel-button" (click)="closeEditStudentModal()">

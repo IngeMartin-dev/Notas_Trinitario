@@ -55,11 +55,71 @@ export class Students implements OnInit {
 
   constructor(private http: HttpClient) {}
 
+  // ── Estudiantes sin salón (los que acaban de subir al adelantar el año) ──
+  /** Estudiantes activos que ya están en su nuevo grado pero aún no tienen salón A/B. */
+  sinSalonTodos: Student[] = [];
+  /** Grado cuyo listado "Sin salón" se está mostrando (null = vista normal). */
+  sinSalonGrade: string | null = null;
+  asignando: { [id: number]: boolean } = {};
+
   ngOnInit() {
-    console.log('Students component initialized - ready to fetch from database');
+    this.loadSinSalon();
+  }
+
+  /** Carga todos los estudiantes y se queda con los que no tienen salón. */
+  loadSinSalon() {
+    this.http.get<Student[]>('http://localhost:8080/api/students').subscribe({
+      next: (list) => {
+        this.sinSalonTodos = (list || []).filter(st =>
+          st.active !== false && !['Salon A', 'Salon B'].includes((st.classGroup || '').trim()) && /^Grado \d+º$/.test(st.grade || ''));
+      },
+      error: () => { this.sinSalonTodos = []; }
+    });
+  }
+
+  sinSalonCount(grade: string): number {
+    return this.sinSalonTodos.filter(st => st.grade === grade).length;
+  }
+
+  get sinSalonDelGrado(): Student[] {
+    return this.sinSalonTodos
+      .filter(st => st.grade === this.sinSalonGrade)
+      .sort((a, b) => (a.surname || '').localeCompare(b.surname || '', 'es'));
+  }
+
+  selectSinSalon(grade: string) {
+    this.sinSalonGrade = grade;
+    this.selectedGrade = null;
+    this.selectedClassroom = null;
+    this.students = [];
+    this.loadSinSalon();
+  }
+
+  /** Pulsar A o B: el estudiante pasa al instante a ese salón. */
+  asignarSalon(student: Student, letra: 'A' | 'B') {
+    if (this.asignando[student.id]) return;
+    this.asignando[student.id] = true;
+    this.http.post('http://localhost:8080/api/school-year/advance/assign-classrooms',
+      { assignments: { [student.id]: letra } }).subscribe({
+      next: () => {
+        this.asignando[student.id] = false;
+        this.sinSalonTodos = this.sinSalonTodos.filter(st => st.id !== student.id);
+        this.showSuccessNotification(`${student.surname} ${student.name} pasó al Salon ${letra}`);
+        if (this.sinSalonCount(this.sinSalonGrade || '') === 0) {
+          this.sinSalonGrade = null;
+        }
+      },
+      error: (err) => {
+        this.asignando[student.id] = false;
+        this.showErrorNotification(err?.status === 403
+          ? 'Solo un administrador puede asignar salones.'
+          : 'No se pudo asignar el salón. Intenta de nuevo.');
+      }
+    });
   }
 
   selectClassroom(grade: string, classroom: string) {
+    this.sinSalonGrade = null;
     this.selectedGrade = grade;
     this.selectedClassroom = classroom;
     console.log('=== STUDENT SELECTION ===');
@@ -503,6 +563,8 @@ export class Students implements OnInit {
       name: this.studentToEdit.name?.trim(),
       surname: this.studentToEdit.surname?.trim(),
       documentNumber: this.studentToEdit.documentNumber?.trim() || null,
+      grade: this.studentToEdit.grade,
+      classGroup: this.studentToEdit.classGroup || null,
       active: this.studentToEdit.active
     };
 
@@ -514,6 +576,7 @@ export class Students implements OnInit {
         this.showSuccessNotification(`El estudiante "${studentName}" fue actualizado correctamente`);
         
         this.closeEditStudentModal();
+        this.loadSinSalon();
         
         if (this.selectedGrade && this.selectedClassroom) {
           setTimeout(() => {
@@ -524,7 +587,7 @@ export class Students implements OnInit {
       },
       error: (error) => {
         console.error('❌ Failed to update student:', error);
-        this.showErrorNotification('Error al actualizar el estudiante. Favor intentarlo más tarde.');
+        this.showErrorNotification(error?.error?.error || 'Error al actualizar el estudiante. Favor intentarlo más tarde.');
         this.isSavingStudent = false;
       }
     });
@@ -591,6 +654,11 @@ export class Students implements OnInit {
         
         // Show error message
         let errorMessage = 'Error al agregar el estudiante. ';
+        if (error?.status === 409 && error?.error?.error) {
+          this.showErrorNotification(error.error.error);
+          this.isSavingStudent = false;
+          return;
+        }
         if (error.status === 0) {
           errorMessage += 'Verifique que el servidor backend esté ejecutándose.';
         } else if (error.status === 400) {

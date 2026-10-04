@@ -304,7 +304,7 @@
         <div class="progress-bar-wrapper">
           <div class="progress-bar" [style.width.%]="generationProgress"></div>
         </div>
-        <div class="progress-text">{{ generationProgress }}% completado</div>
+        <div class="progress-text">{{ generationProgress }}% completado @if (generatingTotal > 0) { · {{ generatingCompleted }} / {{ generatingTotal }} boletines }</div>
       </div>
       <div class="generating-list">
         @for (student of students; track student.id; let i = $index) {

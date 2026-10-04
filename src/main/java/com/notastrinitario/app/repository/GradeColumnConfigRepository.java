@@ -7,6 +7,6 @@ import java.util.Optional;
 
 public interface GradeColumnConfigRepository extends JpaRepository<GradeColumnConfig, Long> {
 
-    Optional<GradeColumnConfig> findByTeacherIdAndSubjectNameAndGradeAndClassroom(
-            Long teacherId, String subjectName, String grade, String classroom);
+    Optional<GradeColumnConfig> findByTeacherIdAndSubjectNameAndGradeAndClassroomAndPeriod(
+            Long teacherId, String subjectName, String grade, String classroom, Integer period);
 }

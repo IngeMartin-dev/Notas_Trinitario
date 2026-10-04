@@ -13,7 +13,7 @@ import java.util.Map;
 
 /**
  * Configuracion de columnas de calificaciones (Quiz/Taller/Actividad) y sus
- * porcentajes. Es individual por profesor + materia + grado + salon: cada
+ * porcentajes. Es individual por profesor + materia + grado + salon + periodo: cada
  * salon tiene su propia lista de columnas y porcentajes, tal como se pidio.
  */
 @RestController
@@ -34,8 +34,9 @@ public class GradeColumnConfigController {
             @RequestParam Long teacherId,
             @RequestParam String subjectName,
             @RequestParam String grade,
-            @RequestParam String classroom) {
-        GradeColumnConfig config = subjectGradeService.getColumnConfig(teacherId, subjectName, grade, classroom);
+            @RequestParam String classroom,
+            @RequestParam(defaultValue = "1") Integer period) {
+        GradeColumnConfig config = subjectGradeService.getColumnConfig(teacherId, subjectName, grade, classroom, period);
         return ResponseEntity.ok(toDto(config));
     }
 
@@ -46,6 +47,7 @@ public class GradeColumnConfigController {
             String subjectName = (String) body.get("subjectName");
             String grade = (String) body.get("grade");
             String classroom = (String) body.get("classroom");
+            Integer period = body.get("period") != null ? Integer.valueOf(body.get("period").toString()) : 1;
             String columnsJson = (String) body.get("columnsJson");
             Integer quizzesPct = toInt(body.get("quizzesPct"));
             Integer talleresPct = toInt(body.get("talleresPct"));
@@ -55,7 +57,7 @@ public class GradeColumnConfigController {
                     .orElseThrow(() -> new RuntimeException("Profesor no encontrado"));
 
             GradeColumnConfig saved = subjectGradeService.saveColumnConfig(
-                    teacherId, subjectName, grade, classroom, columnsJson,
+                    teacherId, subjectName, grade, classroom, period, columnsJson,
                     quizzesPct, talleresPct, actividadesPct, teacher);
 
             return ResponseEntity.ok(toDto(saved));

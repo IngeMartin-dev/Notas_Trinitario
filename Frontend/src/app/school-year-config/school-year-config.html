@@ -82,7 +82,7 @@
 
     <div class="syc-role-tabs">
       <button type="button" class="syc-role-tab" [class.active]="activeRoleTab === 'PARENT'" (click)="setRoleTab('PARENT')">
-        Padres <span class="syc-count-badge">{{ countPorRol('PARENT') }}</span>
+        Padres de familia <span class="syc-count-badge">{{ countPorRol('PARENT') }}</span>
       </button>
       <button type="button" class="syc-role-tab" [class.active]="activeRoleTab === 'TEACHER'" (click)="setRoleTab('TEACHER')">
         Profesores <span class="syc-count-badge">{{ countPorRol('TEACHER') }}</span>
@@ -111,7 +111,11 @@
       <p class="syc-hint">Cargando...</p>
     }
 
-    @if (!loadingGestion && usuariosDeLaPestanaActiva.length === 0) {
+    @if (!loadingGestion && !activeRoleTab) {
+      <p class="syc-empty">Elige una opción: Padres de familia, Profesores o Administradores.</p>
+    }
+
+    @if (!loadingGestion && activeRoleTab && usuariosDeLaPestanaActiva.length === 0) {
       <p class="syc-empty">
         @if (activeRoleTab === 'PARENT' && selectedParentGradoSalon) {
           Ningún padre tiene un estudiante en {{ selectedParentGradoSalon }}.
@@ -230,7 +234,7 @@
   </div>
 }
 
-<!-- Asistente paso a paso: organizar salones de Grado 1º a Grado 11º -->
+<!-- Asistente paso a paso: Grado 1º, luego 2º, 3º ... hasta 11º. Cada estudiante tiene botones A y B. -->
 @if (pendientes.length > 0 || newStudentsGrade1.length > 0) {
   <div class="syc-fullscreen-overlay">
     <div class="syc-fullscreen">
@@ -245,26 +249,21 @@
           <p class="syc-hint">Grado 1º no recibe estudiantes promovidos: registra aquí a los estudiantes NUEVOS que ingresan este año y asígnalos a su salón.</p>
         } @else {
           <p class="syc-hint">
-            Pulsa A o B junto a cada estudiante: pasa al instante a ese salón.
-            Los que no marques quedarán pendientes y volverán a aparecer aquí.
+            Estos estudiantes subieron a Grado {{ currentWizardGradeNumber }}º y están sin salón.
+            Pulsa <strong>A</strong> o <strong>B</strong> junto a cada uno: pasa al instante a ese salón.
           </p>
         }
       </div>
 
       <div class="syc-fullscreen-body">
         @if (currentWizardGradeNumber === 1) {
-          <!-- Paso especial: alta de estudiantes nuevos de Grado 1. La lista
-               va PRIMERO y crece hacia abajo; el formulario + botón "Agregar"
-               quedan siempre al final, debajo del último estudiante añadido. -->
           @if (newStudentsGrade1.length === 0) {
-            <p class="syc-empty">Todavía no has agregado estudiantes nuevos a Grado 1º.</p>
+            <p class="syc-empty">Grado 1º está vacío. Agrega aquí a los estudiantes nuevos.</p>
           } @else {
             <div class="syc-grade-group">
               <div class="syc-grade-group-header">
                 <strong>Grado 1º — nuevos ingresos</strong>
-                <span class="syc-count-badge">
-                  A: {{ countNuevosPorSalon('A') }} · B: {{ countNuevosPorSalon('B') }}
-                </span>
+                <span class="syc-count-badge">A: {{ countNuevosPorSalon('A') }} · B: {{ countNuevosPorSalon('B') }}</span>
               </div>
               @for (est of newStudentsGrade1; track est.documentNumber) {
                 <div class="syc-student-row">
@@ -292,7 +291,6 @@
             <p class="syc-message">{{ addStudentError }}</p>
           }
         } @else {
-          <!-- Pasos Grado 2 a 11: organizar promovidos -->
           @if (pendientesDelPasoActual.length === 0) {
             <p class="syc-empty">No hay estudiantes pendientes de organizar en Grado {{ currentWizardGradeNumber }}º.</p>
           } @else {
@@ -306,8 +304,10 @@
                   <span class="syc-student-name">{{ est.surname }} {{ est.name }}</span>
                   <div class="syc-salon-toggle">
                     <button type="button" class="salon-btn" [class.active]="asignaciones[est.studentId] === 'A'"
+                            [disabled]="guardandoEstudiante[est.studentId]"
                             (click)="toggleAsignacion(est.studentId, 'A')">A</button>
                     <button type="button" class="salon-btn" [class.active]="asignaciones[est.studentId] === 'B'"
+                            [disabled]="guardandoEstudiante[est.studentId]"
                             (click)="toggleAsignacion(est.studentId, 'B')">B</button>
                   </div>
                 </div>
@@ -324,9 +324,7 @@
             <span class="material-icons">arrow_back</span> Anterior
           </button>
           <button class="syc-save-btn" (click)="siguientePasoWizard()">
-            @if (savingClassrooms) {
-              Guardando...
-            } @else if (isLastWizardStep) {
+            @if (isLastWizardStep) {
               <span class="material-icons">check</span> Finalizar
             } @else {
               Siguiente <span class="material-icons">arrow_forward</span>

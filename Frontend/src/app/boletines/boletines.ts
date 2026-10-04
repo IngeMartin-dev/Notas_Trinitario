@@ -82,6 +82,11 @@ export class Boletines implements OnInit, OnDestroy {
    *  (el mismo que aparece en la notificación global). */
   currentJobId: string | null = null;
   private jobsSub?: Subscription;
+  private focusSub?: Subscription;
+  /** Datos del job que se está mostrando (para cuando se llega desde la
+   *  notificación y la lista de estudiantes del formulario está vacía). */
+  generatingTotal: number = 0;
+  generatingCompleted: number = 0;
 
   // Objetivos predeterminados: períodos de este grado+salón cuyos objetivos
   // ya quedaron guardados al generar sus boletines.
@@ -105,11 +110,67 @@ export class Boletines implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.jobsSub?.unsubscribe();
+    this.focusSub?.unsubscribe();
   }
 
   ngOnInit(): void {
     this.loadUnlockedPeriod();
     this.loadSignatures();
+
+    // Click en la notificación flotante: mostrar la vista donde SE ESTÁN
+    // generando los boletines (progreso/resultados), no el formulario.
+    const pending = this.generationService.consumeFocusJobId();
+    if (pending) this.showJob(pending);
+
+    // Si ya estamos en /boletines, el componente no se recrea: escuchar el aviso.
+    this.focusSub = this.generationService.focusRequest$.subscribe(jobId => {
+      this.generationService.consumeFocusJobId();
+      this.showJob(jobId);
+    });
+  }
+
+  /** Cambia a la vista de progreso/resultados del job indicado. */
+  private showJob(jobId: string) {
+    const job = this.generationService.currentJobs.find(j => j.jobId === jobId);
+    if (!job) return;
+
+    this.currentJobId = job.jobId;
+    this.showFormView = false;
+    this.fadeOutForm = false;
+    this.showSignaturePanel = false;
+    this.isGenerating = job.status === 'RUNNING';
+    this.generatedFiles = [];
+    this.applyJobProgress(job);
+
+    if (job.status === 'RUNNING') {
+      this.watchJob(job.jobId);
+    } else {
+      this.finishJob(job);
+    }
+    this.cdr.detectChanges();
+  }
+
+  private applyJobProgress(job: GenerationJob) {
+    const total = job.total || this.students.length;
+    this.generatingTotal = total;
+    this.generatingCompleted = job.completed;
+    this.generationProgress = job.status === 'DONE' ? 100
+      : total > 0 ? Math.round((job.completed / total) * 100) : 0;
+    this.currentGeneratingIndex = Math.min(job.completed, Math.max(this.students.length - 1, 0));
+  }
+
+  private finishJob(job: GenerationJob) {
+    this.generatedFiles = (job.files || []).map(f => ({
+      studentId: f.studentId,
+      studentName: f.studentName,
+      fileName: f.fileName
+    }));
+    if (job.errors && job.errors.length > 0) {
+      console.error('Errores durante la generación:', job.errors);
+      this.dialogService.alert('Algunos boletines no se pudieron generar:\n' + job.errors.join('\n'), 'Errores en la generación');
+    }
+    this.isGenerating = false;
+    this.currentGeneratingIndex = -1;
   }
 
   onGradeChange() {
@@ -689,25 +750,13 @@ export class Boletines implements OnInit, OnDestroy {
       const job = jobs.find(j => j.jobId === jobId);
       if (!job) return;
 
-      const total = job.total || this.students.length;
-      this.generationProgress = total > 0 ? Math.round((job.completed / total) * 100) : 0;
-      this.currentGeneratingIndex = Math.min(job.completed, Math.max(this.students.length - 1, 0));
+      this.applyJobProgress(job);
 
       if (job.status === 'DONE' || job.status === 'ERROR') {
-        this.generatedFiles = job.files.map(f => ({
-          studentId: f.studentId,
-          studentName: f.studentName,
-          fileName: f.fileName
-        }));
-        if (job.errors && job.errors.length > 0) {
-          console.error('Errores durante la generación:', job.errors);
-          this.dialogService.alert('Algunos boletines no se pudieron generar:\n' + job.errors.join('\n'), 'Errores en la generación');
-        }
-        this.isGenerating = false;
-        this.currentGeneratingIndex = -1;
+        this.finishJob(job);
         this.jobsSub?.unsubscribe();
-        this.cdr.detectChanges();
       }
+      this.cdr.detectChanges();
     });
   }
 

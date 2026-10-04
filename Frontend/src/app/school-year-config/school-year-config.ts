@@ -59,7 +59,8 @@ export class SchoolYearConfig implements OnInit {
   // Recuadro "Roles y permisos" (pestañas Padres / Profesores / Administradores)
   usuariosGestion: UsuarioGestionRol[] = [];
   loadingGestion = false;
-  activeRoleTab: 'PARENT' | 'TEACHER' | 'ADMIN' = 'PARENT';
+  /** null = ninguna pestaña elegida: no se muestra ninguna lista hasta pulsar un botón. */
+  activeRoleTab: 'PARENT' | 'TEACHER' | 'ADMIN' | null = null;
   togglingAdminExtra: { [userId: number]: boolean } = {};
 
   /** Filtro por "Grado X - Salón Y" dentro de la pestaña Padres: al elegir
@@ -144,7 +145,11 @@ export class SchoolYearConfig implements OnInit {
       next: (res) => {
         this.advancing = false;
         this.advanceMessage = `${res.estudiantesPromovidos} estudiante(s) promovido(s), ${res.estudiantesGraduados} pasaron a Promociones (Grado 11º).`;
-        this.pendientes = res.pendientesDeOrganizar;
+        // El servidor puede mandar el grado como "grade" o "newGrade": se acepta cualquiera.
+        this.pendientes = (res.pendientesDeOrganizar || []).map((p: any) => ({
+          ...p,
+          grade: p.grade ?? p.newGrade
+        }));
         this.asignaciones = {};
         this.newStudentsGrade1 = [];
         this.currentWizardIndex = 0; // el asistente siempre arranca en Grado 1
@@ -193,13 +198,30 @@ export class SchoolYearConfig implements OnInit {
     this.pendientes = [];
   }
 
+  get totalAsignados(): number {
+    return this.pendientes.filter(p => !!this.asignaciones[p.studentId]).length;
+  }
+
+  terminarOrganizacion() {
+    const sinSalon = this.pendientes.length - this.totalAsignados;
+    this.advanceMessage = sinSalon > 0
+      ? `Quedaron ${sinSalon} estudiante(s) sin salón; los verás de nuevo al entrar a esta pantalla.`
+      : 'Todos los estudiantes ya tienen salón.';
+    this.pendientes = [];
+    this.newStudentsGrade1 = [];
+    this.loadConfig();
+  }
+
   get pendientesPorGrado(): { grade: string; estudiantes: PendienteOrganizar[] }[] {
     const grupos = new Map<string, PendienteOrganizar[]>();
     for (const p of this.pendientes) {
       if (!grupos.has(p.grade)) grupos.set(p.grade, []);
       grupos.get(p.grade)!.push(p);
     }
-    return Array.from(grupos.entries()).map(([grade, estudiantes]) => ({ grade, estudiantes }));
+    const num = (g: string) => Number((g.match(/\d+/) || ['0'])[0]);
+    return Array.from(grupos.entries())
+      .map(([grade, estudiantes]) => ({ grade, estudiantes }))
+      .sort((a, b) => num(a.grade) - num(b.grade));
   }
 
   countAsignados(grade: string, salon: 'A' | 'B'): number {
@@ -347,8 +369,9 @@ export class SchoolYearConfig implements OnInit {
   }
 
   setRoleTab(tab: 'PARENT' | 'TEACHER' | 'ADMIN') {
-    this.activeRoleTab = tab;
-    if (tab !== 'PARENT') {
+    // Pulsar de nuevo la pestaña abierta la cierra.
+    this.activeRoleTab = this.activeRoleTab === tab ? null : tab;
+    if (this.activeRoleTab !== 'PARENT') {
       // El filtro de grado/salón solo aplica dentro de Padres; al salir de
       // esa pestaña se limpia para que no quede "pegado" si se vuelve luego.
       this.selectedParentGradoSalon = null;
@@ -385,6 +408,8 @@ export class SchoolYearConfig implements OnInit {
       // (additionalAdmin) — no solo los que tienen roleName === 'ADMIN'.
       return this.usuariosGestion.filter(u => u.roleName === 'ADMIN' || u.additionalAdmin);
     }
+
+    if (!this.activeRoleTab) return [];
 
     let lista = this.usuariosGestion.filter(u => u.roleName === this.activeRoleTab);
 

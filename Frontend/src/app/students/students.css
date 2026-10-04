@@ -855,3 +855,15 @@
   .notification-icon { width: 40px; height: 40px; }
   .checkmark, .error-mark { width: 24px; height: 24px; }
 }
+
+
+/* Estudiantes sin salón (tras adelantar el año) */
+.sin-salon-btn { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+.sin-salon-btn.selected { background: #f97316; color: #fff; border-color: #f97316; }
+.sin-salon-help { margin: 0 0 12px; color: #6b7280; font-size: .9rem; }
+.salon-pick-btn {
+  width: 44px; height: 36px; margin-right: 8px; border-radius: 10px; border: 1px solid #c7d2fe;
+  background: #eef2ff; color: #3730a3; font-weight: 700; font-size: 1rem; cursor: pointer;
+}
+.salon-pick-btn:hover:not(:disabled) { background: #4f46e5; color: #fff; }
+.salon-pick-btn:disabled { opacity: .5; cursor: progress; }

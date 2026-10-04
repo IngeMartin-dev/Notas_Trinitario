@@ -10,7 +10,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Router } from '@angular/router';
-import { BehaviorSubject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { AuthService } from './auth.service';
 
 export interface GenerationJobFile {
@@ -49,6 +49,12 @@ export class GenerationService {
    *  crea la instancia DESPUÉS del click, y un Subject ya habría emitido
    *  sin nadie escuchando. */
   private focusJobId: string | null = null;
+
+  /** Emite el jobId cuando el usuario hace click en una notificación y la
+   *  pantalla de Boletines YA está montada (navegar a la misma ruta no
+   *  recrea el componente, así que necesita este aviso para reaccionar). */
+  private focusRequestSubject = new Subject<string>();
+  focusRequest$ = this.focusRequestSubject.asObservable();
 
   private pollHandle: any = null;
   private polling = false;
@@ -106,6 +112,7 @@ export class GenerationService {
   /** Click en una notificación: navega a Boletines y deja marcado qué job enfocar. */
   openJob(job: GenerationJob) {
     this.focusJobId = job.jobId;
+    this.focusRequestSubject.next(job.jobId);
     this.router.navigate(['/boletines']);
   }
 

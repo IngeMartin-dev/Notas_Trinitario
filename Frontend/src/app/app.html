@@ -32,6 +32,51 @@
                   </a>
                 </li>
               }
+              <!-- Padres de Familia: solo Administrador -->
+              @if (isAdmin()) {
+                <li [class.active]="activeRoute() === 'parents'">
+                  <a routerLink="/parents" (click)="setActiveRoute('parents')">
+                    <span class="material-icons">family_restroom</span>
+                    <span class="menu-text">Padres de Familia</span>
+                  </a>
+                </li>
+              }
+              <!-- Profesores: solo Administrador -->
+              @if (isAdmin()) {
+                <li [class.active]="activeRoute() === 'teachers'">
+                  <a routerLink="/teachers" (click)="setActiveRoute('teachers')">
+                    <span class="material-icons">person</span>
+                    <span class="menu-text">Profesores</span>
+                  </a>
+                </li>
+              }
+              <!-- Directores de Grupo: solo Administrador -->
+              @if (isAdmin()) {
+                <li [class.active]="activeRoute() === 'directors-group'">
+                  <a routerLink="/directors-group" (click)="setActiveRoute('directors-group')">
+                    <span class="material-icons">groups</span>
+                    <span class="menu-text">Directores de Grupo</span>
+                  </a>
+                </li>
+              }
+              <!-- Chats: cualquier rol reconocido (dentro del chat, los padres no ven profesores/admins, según regla propia del chat) -->
+              @if (hasKnownRole()) {
+                <li [class.active]="activeRoute() === 'chats'">
+                  <a routerLink="/chats" (click)="setActiveRoute('chats')">
+                    <span class="material-icons">chat</span>
+                    <span class="menu-text">Chats</span>
+                  </a>
+                </li>
+              }
+              <!-- Materias: solo Administrador -->
+              @if (isAdmin()) {
+                <li [class.active]="activeRoute() === 'subjects'">
+                  <a routerLink="/subjects" (click)="setActiveRoute('subjects')">
+                    <span class="material-icons">menu_book</span>
+                    <span class="menu-text">Materias</span>
+                  </a>
+                </li>
+              }
               <!-- Calificaciones: Profesor/Director editan; Padre de Familia solo lectura (del hijo enlazado y activo) -->
               @if (isTeacherOrDirector() || isParent()) {
                 <li [class.active]="activeRoute() === 'grades'">
@@ -59,57 +104,12 @@
                   </a>
                 </li>
               }
-              <!-- Promociones (egresados de Grado 11º): solo Administrador -->
-              @if (isAdmin()) {
-                <li [class.active]="activeRoute() === 'promociones'">
-                  <a routerLink="/promociones" (click)="setActiveRoute('promociones')">
-                    <span class="material-icons">workspace_premium</span>
-                    <span class="menu-text">Promociones</span>
-                  </a>
-                </li>
-              }
               <!-- Recuperaciones: solo Profesor / Director de Grupo -->
               @if (isTeacherOrDirector()) {
                 <li [class.active]="activeRoute() === 'recoveries'">
                   <a routerLink="/recoveries" (click)="setActiveRoute('recoveries')">
                     <span class="material-icons">school</span>
                     <span class="menu-text">Recuperaciones</span>
-                  </a>
-                </li>
-              }
-              <!-- Materias: solo Administrador -->
-              @if (isAdmin()) {
-                <li [class.active]="activeRoute() === 'subjects'">
-                  <a routerLink="/subjects" (click)="setActiveRoute('subjects')">
-                    <span class="material-icons">menu_book</span>
-                    <span class="menu-text">Materias</span>
-                  </a>
-                </li>
-              }
-              <!-- Profesores: solo Administrador -->
-              @if (isAdmin()) {
-                <li [class.active]="activeRoute() === 'teachers'">
-                  <a routerLink="/teachers" (click)="setActiveRoute('teachers')">
-                    <span class="material-icons">person</span>
-                    <span class="menu-text">Profesores</span>
-                  </a>
-                </li>
-              }
-              <!-- Directores de Grupo: solo Administrador -->
-              @if (isAdmin()) {
-                <li [class.active]="activeRoute() === 'directors-group'">
-                  <a routerLink="/directors-group" (click)="setActiveRoute('directors-group')">
-                    <span class="material-icons">groups</span>
-                    <span class="menu-text">Directores de Grupo</span>
-                  </a>
-                </li>
-              }
-              <!-- Padres de Familia: solo Administrador -->
-              @if (isAdmin()) {
-                <li [class.active]="activeRoute() === 'parents'">
-                  <a routerLink="/parents" (click)="setActiveRoute('parents')">
-                    <span class="material-icons">family_restroom</span>
-                    <span class="menu-text">Padres de Familia</span>
                   </a>
                 </li>
               }
@@ -128,12 +128,12 @@
                   </a>
                 </li>
               }
-              <!-- Chats: cualquier rol reconocido (dentro del chat, los padres no ven profesores/admins, según regla propia del chat) -->
-              @if (hasKnownRole()) {
-                <li [class.active]="activeRoute() === 'chats'">
-                  <a routerLink="/chats" (click)="setActiveRoute('chats')">
-                    <span class="material-icons">chat</span>
-                    <span class="menu-text">Chats</span>
+              <!-- Promociones (egresados de Grado 11º): solo Administrador -->
+              @if (isAdmin()) {
+                <li [class.active]="activeRoute() === 'promociones'">
+                  <a routerLink="/promociones" (click)="setActiveRoute('promociones')">
+                    <span class="material-icons">workspace_premium</span>
+                    <span class="menu-text">Promociones</span>
                   </a>
                 </li>
               }
@@ -146,6 +146,15 @@
                   </a>
                 </li>
               }
+               <!-- Configuración de Año: solo Administrador -->
+              @if (isAdmin()) {
+                <li [class.active]="activeRoute() === 'school-year-config'">
+                  <a routerLink="/school-year-config" (click)="setActiveRoute('school-year-config')">
+                    <span class="material-icons">event_repeat</span>
+                    <span class="menu-text">Configuración de Año</span>
+                  </a>
+                </li>
+              }
               <!-- Configuración: cualquier rol reconocido -->
               @if (hasKnownRole()) {
                 <li [class.active]="activeRoute() === 'settings'">
@@ -155,15 +164,7 @@
                   </a>
                 </li>
               }
-              <!-- Configuración de Año: solo Administrador -->
-              @if (isAdmin()) {
-                <li [class.active]="activeRoute() === 'school-year-config'">
-                  <a routerLink="/school-year-config" (click)="setActiveRoute('school-year-config')">
-                    <span class="material-icons">event_repeat</span>
-                    <span class="menu-text">Configuración de Año</span>
-                  </a>
-                </li>
-              }
+
             </ul>
           </nav>
           <div class="user-profile">

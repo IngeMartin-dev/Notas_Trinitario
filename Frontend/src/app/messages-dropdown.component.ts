@@ -243,6 +243,29 @@ interface DropdownItem {
     .combined-list::-webkit-scrollbar-track { background: transparent; }
     .combined-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 
+
+    /* ----- Modo oscuro ----- */
+    :host-context([data-theme="dark"]) .messages-dropdown {
+      box-shadow: 0 24px 60px rgba(0, 0, 0, .7), 0 0 30px rgba(6, 182, 212, .12);
+      border-color: var(--border-strong);
+    }
+    :host-context([data-theme="dark"]) .dd-header {
+      background: linear-gradient(135deg, #0f172a 0%, #155e75 100%);
+      border-bottom: 1px solid rgba(6, 182, 212, .25);
+    }
+    :host-context([data-theme="dark"]) .dd-title-icon { background: rgba(6, 182, 212, .2); color: var(--brand-500); }
+    :host-context([data-theme="dark"]) .dd-tab.active { color: var(--brand-500); box-shadow: 0 0 0 1px var(--border-strong); }
+    :host-context([data-theme="dark"]) .dd-item.unread { background: color-mix(in srgb, var(--brand) 10%, transparent); }
+    :host-context([data-theme="dark"]) .dd-item.unread:hover { background: color-mix(in srgb, var(--brand) 16%, transparent); }
+    /* Chips y avatares con colores más claros para que contrasten sobre fondo oscuro */
+    :host-context([data-theme="dark"]) .dd-chip { filter: brightness(1.45) saturate(.9); }
+    :host-context([data-theme="dark"]) .dd-avatar { box-shadow: 0 0 14px rgba(0, 0, 0, .5); }
+    :host-context([data-theme="dark"]) .dd-dot { background: var(--brand-500); box-shadow: 0 0 0 3px rgba(6, 182, 212, .25), 0 0 10px rgba(6, 182, 212, .6); }
+    :host-context([data-theme="dark"]) .mark-all-read-btn { background: var(--brand); color: #04141a; }
+    :host-context([data-theme="dark"]) .mark-all-read-btn:disabled { background: var(--surface-2); color: var(--text-4); }
+    :host-context([data-theme="dark"]) .delete-notifications-btn:hover { background: var(--danger-bg); color: #fca5a5; border-color: rgba(239, 68, 68, .4); }
+    :host-context([data-theme="dark"]) .empty-state .material-icons { color: var(--brand-500); opacity: .5; }
+
     @media (max-width: 480px) {
       .messages-dropdown { width: calc(100vw - 24px); max-width: none; right: 12px; position: fixed; top: 64px; }
     }

@@ -40,12 +40,13 @@ public class NotificationController {
     @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
     @GetMapping("/user/{userId}")
     public ResponseEntity<List<NotificationDTO>> getForUser(@PathVariable Long userId) {
-        System.out.println("=== GET USER NOTIFICATIONS ===");
-        System.out.println("User ID: " + userId);
+        // Log silenciado: spam en consola de Spring Boot
+        // System.out.println("=== GET USER NOTIFICATIONS ===");
+        // System.out.println("User ID: " + userId);
 
         try {
             List<Notification> notifications = notificationRepository.findByUserIdWithUser(userId);
-            System.out.println("Found " + notifications.size() + " notifications");
+            // System.out.println("Found " + notifications.size() + " notifications");
             List<NotificationDTO> notificationDTOs = notifications.stream()
                     .map(this::convertToDTO)
                     .toList();
@@ -212,13 +213,14 @@ public class NotificationController {
     @PreAuthorize("hasRole('ADMIN') or #userId == authentication.principal.id")
     @DeleteMapping("/user/{userId}")
     public ResponseEntity<?> deleteAllForUser(@PathVariable Long userId) {
-        System.out.println("=== DELETE ALL NOTIFICATIONS FOR USER ===");
-        System.out.println("User ID: " + userId);
+        // Log silenciado: spam en consola de Spring Boot
+        // System.out.println("=== DELETE ALL NOTIFICATIONS FOR USER ===");
+        // System.out.println("User ID: " + userId);
 
         try {
             List<Notification> notifications = notificationRepository.findByUserIdWithUser(userId);
             notificationRepository.deleteAll(notifications);
-            System.out.println("Deleted " + notifications.size() + " notifications for user " + userId);
+            // System.out.println("Deleted " + notifications.size() + " notifications for user " + userId);
             return ResponseEntity.ok(Map.of("success", true, "message", "All notifications deleted"));
         } catch (Exception e) {
             e.printStackTrace();
@@ -271,8 +273,9 @@ public class NotificationController {
     @PostMapping("/reply")
     public ResponseEntity<?> replyToNotification(@RequestBody Map<String, Object> request) {
         try {
-            System.out.println("=== REPLY NOTIFICATION REQUEST ===");
-            System.out.println("Request payload: " + request);
+            // Log silenciado: spam en consola de Spring Boot
+            // System.out.println("=== REPLY NOTIFICATION REQUEST ===");
+            // System.out.println("Request payload: " + request);
 
             // Validate required fields
             if (!request.containsKey("originalNotificationId") || !request.containsKey("replyMessage")) {
@@ -324,7 +327,8 @@ public class NotificationController {
                     "message", "Respuesta enviada exitosamente"));
 
         } catch (NumberFormatException e) {
-            System.out.println("Number format error: " + e.getMessage());
+            // Log silenciado: spam en consola de Spring Boot
+            // System.out.println("Number format error: " + e.getMessage());
             return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
                     "message", "Error en el formato de los IDs: " + e.getMessage()));

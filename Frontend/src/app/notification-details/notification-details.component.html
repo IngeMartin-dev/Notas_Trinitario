@@ -70,7 +70,7 @@
             }
           </div>
           <!-- Reply Section -->
-          @if (!isOwnNotification()) {
+          @if (!isOwnNotification() && !readOnly) {
             <div class="reply-section">
               <div class="reply-header">
                 <h3>Responder</h3>
@@ -108,7 +108,7 @@
             </div>
           }
           <!-- Own notification info -->
-          @if (isOwnNotification()) {
+          @if (isOwnNotification() && !readOnly) {
             <div class="own-notification-info">
               <div class="info-message">
                 <span class="material-icons">info</span>
@@ -120,7 +120,7 @@
       }
       <!-- Footer -->
       <div class="modal-footer">
-        @if (notification && !notification.isRead) {
+        @if (notification && !notification.isRead && !readOnly) {
           <button
             class="mark-read-btn"
             (click)="markAsRead()"

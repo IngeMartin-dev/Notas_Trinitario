@@ -28,6 +28,7 @@ public class SchoolYearService {
     private final ReportCardRepository reportCardRepository;
     private final ReportCardHistoryRepository reportCardHistoryRepository;
     private final BoletinObjetivoRepository boletinObjetivoRepository;
+    private final BoletinValoracionRepository boletinValoracionRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final GradeColumnConfigRepository gradeColumnConfigRepository;
     private final NotificationRepository notificationRepository;
@@ -48,6 +49,7 @@ public class SchoolYearService {
                               ReportCardRepository reportCardRepository,
                               ReportCardHistoryRepository reportCardHistoryRepository,
                               BoletinObjetivoRepository boletinObjetivoRepository,
+                              BoletinValoracionRepository boletinValoracionRepository,
                               ChatMessageRepository chatMessageRepository,
                               GradeColumnConfigRepository gradeColumnConfigRepository,
                               NotificationRepository notificationRepository,
@@ -62,6 +64,7 @@ public class SchoolYearService {
         this.reportCardRepository = reportCardRepository;
         this.reportCardHistoryRepository = reportCardHistoryRepository;
         this.boletinObjetivoRepository = boletinObjetivoRepository;
+        this.boletinValoracionRepository = boletinValoracionRepository;
         this.chatMessageRepository = chatMessageRepository;
         this.gradeColumnConfigRepository = gradeColumnConfigRepository;
         this.notificationRepository = notificationRepository;
@@ -111,6 +114,28 @@ public class SchoolYearService {
      */
     @Transactional
     public void wipeYearData() {
+        limpiarNotasYDocumentos();
+        chatMessageRepository.deleteAllInBatch();
+        gradeColumnConfigRepository.deleteAllInBatch();
+        notificationRepository.deleteAllInBatch();
+        periodRepository.deleteAll();
+        homeroomAssignmentRepository.deleteAllInBatch();
+
+        SchoolYearConfig config = getConfig();
+        config.setLastWipedAt(LocalDateTime.now());
+        config.setCurrentAcademicYear((config.getCurrentAcademicYear() != null ? config.getCurrentAcademicYear() : LocalDate.now().getYear()) + 1);
+        config.setYearEndNotified(false); // listo para avisar de nuevo el próximo año
+        schoolYearConfigRepository.save(config);
+    }
+
+    /**
+     * Borra las notas y los documentos generados del año: notas, recuperaciones,
+     * boletines (BD y PDFs), consolidados (PDFs), objetivos predeterminados y
+     * valoraciones acudiente guardadas. NO toca estudiantes, padres, cuentas de
+     * profesores ni la sección Promociones. Lo usan el borrado de fin de año y
+     * "Adelantar año".
+     */
+    private void limpiarNotasYDocumentos() {
         // Las firmas ligadas a un boletin deben ir primero: si la base de datos
         // no tiene ON DELETE CASCADE, borrar report_cards fallaria por la FK.
         entityManager.createNativeQuery("DELETE FROM digital_signatures WHERE report_card_id IS NOT NULL")
@@ -121,24 +146,15 @@ public class SchoolYearService {
         reportCardHistoryRepository.deleteAllInBatch();
         reportCardRepository.deleteAllInBatch();
         boletinObjetivoRepository.deleteAllInBatch();
-        chatMessageRepository.deleteAllInBatch();
-        gradeColumnConfigRepository.deleteAllInBatch();
-        notificationRepository.deleteAllInBatch();
-        periodRepository.deleteAll();
-        homeroomAssignmentRepository.deleteAllInBatch();
+        boletinValoracionRepository.deleteAllInBatch();
 
-        borrarCarpetaBoletinesGenerados();
-
-        SchoolYearConfig config = getConfig();
-        config.setLastWipedAt(LocalDateTime.now());
-        config.setCurrentAcademicYear((config.getCurrentAcademicYear() != null ? config.getCurrentAcademicYear() : LocalDate.now().getYear()) + 1);
-        config.setYearEndNotified(false); // listo para avisar de nuevo el próximo año
-        schoolYearConfigRepository.save(config);
+        borrarCarpeta("Boletines Generados");
+        borrarCarpeta("Consolidados Generados");
     }
 
-    private void borrarCarpetaBoletinesGenerados() {
+    private void borrarCarpeta(String nombre) {
         try {
-            Path dir = Path.of(System.getProperty("user.dir"), "Boletines Generados");
+            Path dir = Path.of(System.getProperty("user.dir"), nombre);
             if (Files.exists(dir)) {
                 try (var walk = Files.walk(dir)) {
                     walk.sorted(Comparator.reverseOrder()).forEach(p -> {
@@ -147,7 +163,7 @@ public class SchoolYearService {
                 }
             }
         } catch (IOException ignored) {
-            // Si falla el borrado de PDFs no debe tumbar el resto del proceso de cierre de ano.
+            // Si falla el borrado de PDFs no debe tumbar el resto del proceso.
         }
     }
 
@@ -220,7 +236,6 @@ public class SchoolYearService {
                 pendiente.put("studentId", s.getId());
                 pendiente.put("name", s.getName());
                 pendiente.put("surname", s.getSurname());
-                pendiente.put("grade", s.getGrade());
                 pendiente.put("newGrade", s.getGrade());
                 resultado.pendientesDeOrganizar.add(pendiente);
             }
@@ -230,6 +245,11 @@ public class SchoolYearService {
 
         // Los porcentajes de calificaciones son por salon y por ano: se reinician.
         gradeColumnConfigRepository.deleteAllInBatch();
+
+        // Al adelantar el año se borra todo lo del año anterior (notas, boletines,
+        // consolidados, valoraciones), menos Promociones. Va DESPUES del bucle de
+        // arriba porque ahi se copian a Promociones los boletines de Grado 11º.
+        limpiarNotasYDocumentos();
 
         config.setLastAdvancedAt(LocalDateTime.now());
         config.setAdvancePendingClassroomOrg(!resultado.pendientesDeOrganizar.isEmpty());

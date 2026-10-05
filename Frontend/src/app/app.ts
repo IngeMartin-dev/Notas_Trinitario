@@ -51,6 +51,7 @@ export class App implements OnInit, OnDestroy {
   unreadMessageCount = signal(0);
   unreadNotificationCount = signal(0);
   showNotificationDetailsModal = signal(false);
+  notificationDetailsReadOnly = signal(false);
   selectedNotification: Notification | null = null;
   allNotifications: Notification[] = [];
   allMessages: Message[] = [];
@@ -301,9 +302,22 @@ export class App implements OnInit, OnDestroy {
     console.log('=== MESSAGE/NOTIFICATION CLICKED ===', event);
     
     if (event.type === 'message') {
-      // Handle message click
-      this.showSuccessMessage(`Mensaje de ${event.item.senderName} ${event.item.senderSurname}`);
+      // Respuesta recibida: se abre el mismo detalle que una notificación, en modo lectura,
+      // para ver el mensaje completo (antes solo salía un aviso corto).
+      const m = event.item;
+      this.selectedNotification = {
+        id: m.id,
+        user: { id: m.senderId, name: m.senderName, surname: m.senderSurname },
+        title: `Respuesta a "${m.originalNotificationTitle}"`,
+        message: m.replyMessage,
+        createdAt: m.createdAt,
+        isRead: true,
+        notificationType: 'REPLY'
+      } as any;
+      this.notificationDetailsReadOnly.set(true);
+      this.showNotificationDetailsModal.set(true);
     } else if (event.type === 'notification') {
+      this.notificationDetailsReadOnly.set(false);
       // Handle notification click - open notification details modal
       this.selectedNotification = event.item;
       this.showNotificationDetailsModal.set(true);
@@ -318,6 +332,7 @@ export class App implements OnInit, OnDestroy {
   closeNotificationDetailsModal() {
     console.log('=== CLOSING NOTIFICATION DETAILS MODAL ===');
     this.showNotificationDetailsModal.set(false);
+    this.notificationDetailsReadOnly.set(false);
     this.selectedNotification = null;
   }
 

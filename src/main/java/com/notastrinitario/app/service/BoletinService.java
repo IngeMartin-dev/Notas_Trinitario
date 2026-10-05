@@ -41,6 +41,7 @@ public class BoletinService {
     private final SubjectRepository subjectRepository;
     private final RecoveryDataRepository recoveryDataRepository;
     private final BoletinObjetivoRepository boletinObjetivoRepository;
+    private final com.notastrinitario.app.repository.BoletinValoracionRepository boletinValoracionRepository;
     private final com.notastrinitario.app.repository.SchoolYearConfigRepository schoolYearConfigRepository;
 
     @Value("${app.institution.name}")
@@ -59,13 +60,35 @@ public class BoletinService {
             SubjectRepository subjectRepository,
             RecoveryDataRepository recoveryDataRepository,
             BoletinObjetivoRepository boletinObjetivoRepository,
+            com.notastrinitario.app.repository.BoletinValoracionRepository boletinValoracionRepository,
             com.notastrinitario.app.repository.SchoolYearConfigRepository schoolYearConfigRepository) {
         this.studentRepository = studentRepository;
         this.subjectGradeRepository = subjectGradeRepository;
         this.subjectRepository = subjectRepository;
         this.recoveryDataRepository = recoveryDataRepository;
         this.boletinObjetivoRepository = boletinObjetivoRepository;
+        this.boletinValoracionRepository = boletinValoracionRepository;
         this.schoolYearConfigRepository = schoolYearConfigRepository;
+    }
+
+    /** Nota de Valoración Acudiente guardada en la BD para un estudiante y período (o null). */
+    private Double valoracionGuardada(Long studentId, int period) {
+        if (studentId == null) return null;
+        return boletinValoracionRepository.findByStudentIdAndPeriod(studentId, period)
+                .map(com.notastrinitario.app.entity.BoletinValoracion::getNota)
+                .orElse(null);
+    }
+
+    /** Guarda (o actualiza) la nota de Valoración Acudiente de un estudiante en un período. */
+    private void guardarValoracion(Long studentId, Integer period, Double nota) {
+        if (studentId == null || period == null || nota == null || nota <= 0) return;
+        com.notastrinitario.app.entity.BoletinValoracion v = boletinValoracionRepository
+                .findByStudentIdAndPeriod(studentId, period)
+                .orElseGet(com.notastrinitario.app.entity.BoletinValoracion::new);
+        v.setStudentId(studentId);
+        v.setPeriod(period);
+        v.setNota(nota);
+        boletinValoracionRepository.save(v);
     }
 
     /**
@@ -270,6 +293,14 @@ public class BoletinService {
             if (requestValAcudiente != null && !requestValAcudiente.isBlank()) {
                 data.setValoracionAcudiente(requestValAcudiente);
             }
+
+            // Se guarda en la BD la nota digitada para este período, así los boletines
+            // de los períodos siguientes la muestran. Un valor vacío o 0 no borra lo ya guardado.
+            Double notaParaGuardar = parseNumeroConductual(requestValAcudiente);
+            if (notaParaGuardar == null && requestValNota != null && requestValNota > 0) {
+                notaParaGuardar = requestValNota.doubleValue();
+            }
+            guardarValoracion(studentId, period, notaParaGuardar);
 
             if (request.get("directorSignature") != null) {
                 String sigPath = str(request.get("directorSignature"));
@@ -932,7 +963,12 @@ public class BoletinService {
             } else if (periodoActual != null && p == periodoActual && valoracionManual != null) {
                 valor = valoracionManual;
             } else {
-                valor = promedioConductualPeriodo(studentId, p, subjectNames, true);
+                // 1) Nota guardada en la BD al generar el boletín de ese período;
+                // 2) si no hay, el promedio de lo que guardaron los docentes (RecoveryData).
+                valor = valoracionGuardada(studentId, p);
+                if (valor == null) {
+                    valor = promedioConductualPeriodo(studentId, p, subjectNames, true);
+                }
             }
 
             if (!esFuturo && valor == null && periodoActual != null && p == periodoActual) {

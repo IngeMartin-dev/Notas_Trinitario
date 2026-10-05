@@ -117,7 +117,16 @@
     </div>
   </div>
 
-  <!-- Statistics Cards -->
+  <!-- Mensaje de bienvenida según rol -->
+  <div class="role-banner">
+    <div class="role-banner-icon"><span class="material-icons">{{ getRoleTip().icon }}</span></div>
+    <div class="role-banner-text">
+      <h3>{{ getRoleTip().title }}</h3>
+      <p>{{ getRoleTip().text }}</p>
+    </div>
+  </div>
+
+  @if (!isParent()) {
   <div class="stats-grid">
     <div class="stat-card">
       <div class="stat-icon">
@@ -176,47 +185,41 @@
     </div>
   </div>
 
-  <!-- Quick Actions -->
+  }
+
+  <!-- Accesos rápidos (según el rol) -->
   <div class="quick-actions">
-    <h2>Mas Acciones</h2>
-    <div class="actions-grid">
-      @if (isAdmin()) {
-        <button class="action-btn" (click)="openCountdownConfig()">
-          <span class="material-icons">schedule</span>
-          <span>Configurar Cronómetro</span>
+    <h2>{{ isParent() ? 'Tus accesos' : 'Accesos rápidos' }}</h2>
+    <div class="quick-grid">
+      @for (link of getQuickLinks(); track link.label) {
+        <button class="quick-card" [style.--qc]="link.color" (click)="onQuickLink(link)">
+          <span class="quick-icon"><span class="material-icons">{{ link.icon }}</span></span>
+          <span class="quick-text">
+            <strong>{{ link.label }}</strong>
+            <small>{{ link.desc }}</small>
+          </span>
+          <span class="material-icons quick-arrow">arrow_forward</span>
         </button>
       }
-
-      <button class="action-btn" (click)="openAddStudentModal()">
-        <span class="material-icons">person_add</span>
-        <span>Agregar Estudiante</span>
-      </button>
-
-      @if (!isAdmin()) {
-        <button class="action-btn" (click)="openAddGradeModal()">
-          <span class="material-icons">grade</span>
-          <span>Gestionar Calificaciones</span>
-        </button>
-      }
-
-      @if (isAdmin()) {
-        <button class="action-btn" (click)="openSendNotificationModal()">
-          <span class="material-icons">notifications</span>
-          <span>Enviar Información</span>
-        </button>
-      }
-
-      <button class="action-btn" (click)="openAddSubjectModal()">
-        <span class="material-icons">library_books</span>
-        <span>Administrar Materias</span>
-      </button>
-
-      <button class="action-btn" (click)="openViewReportsModal()">
-        <span class="material-icons">bar_chart</span>
-        <span>Ver Reportes</span>
-      </button>
     </div>
   </div>
+
+  @if (isParent()) {
+    <!-- Escala valorativa: ayuda a los padres a leer los boletines -->
+    <div class="scale-card">
+      <h2>Escala valorativa</h2>
+      <p class="scale-sub">Así se leen las notas y los boletines de tus hijos.</p>
+      <div class="scale-row">
+        @for (e of escalaValorativa; track e.letra) {
+          <div class="scale-item" [style.--sc]="e.color">
+            <span class="scale-letter">{{ e.letra }}</span>
+            <strong>{{ e.nombre }}</strong>
+            <small>{{ e.rango }}</small>
+          </div>
+        }
+      </div>
+    </div>
+  }
 
   <!-- Recent Activity -->
   <div class="recent-activity">
@@ -389,19 +392,31 @@
               </select>
             </div>
             <div class="notification-preview">
-              <h4>Vista Previa:</h4>
-              <div class="preview-card">
-                <div class="preview-header">
-                  <span class="material-icons">notifications</span>
-                  <span class="preview-title">{{
-                    newNotification.title || 'Título de la notificación'
-                  }}</span>
+              <h4>Vista previa <small>(así la verá quien la reciba)</small></h4>
+              <div class="np-modal">
+                <div class="np-header">
+                  <div class="np-icon"><span class="material-icons">admin_panel_settings</span></div>
+                  <div class="np-header-text">
+                    <h2>{{ newNotification.title || 'Título de la notificación' }}</h2>
+                    <div class="np-meta">
+                      <span class="np-sender">
+                        @if (currentUser()?.profilePicture) {
+                          <img class="np-avatar" [src]="getCorrectImageUrl(currentUser()?.profilePicture)" [alt]="getUserInitials()" />
+                        } @else {
+                          <span class="np-initials">{{ getUserInitials() }}</span>
+                        }
+                        {{ getDisplayName() }}
+                      </span>
+                      <span class="np-date">Ahora</span>
+                    </div>
+                  </div>
                 </div>
-                <div class="preview-content">
-                  {{ newNotification.message || 'Mensaje de la notificación' }}
-                </div>
-                <div class="preview-footer">
-                  <small>Enviado por: {{ getDisplayName() }}</small>
+                <div class="np-body">
+                  <div class="np-message">{{ newNotification.message || 'Aquí aparecerá el mensaje de la notificación.' }}</div>
+                  <div class="np-status"><span class="material-icons">circle</span> No leído</div>
+                  <div class="np-recipient">
+                    <span class="material-icons">send</span> Para: <strong>{{ getPreviewRecipientLabel() }}</strong>
+                  </div>
                 </div>
               </div>
             </div>

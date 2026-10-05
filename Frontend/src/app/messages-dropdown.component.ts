@@ -9,6 +9,24 @@ export interface MessageClickEvent {
   action: 'view' | 'reply';
 }
 
+interface DropdownItem {
+  key: string;
+  id: number;
+  kind: 'message' | 'notification';
+  raw: Message | Notification;
+  title: string;
+  text: string;
+  sender: string;
+  picture: string;
+  icon: string;
+  color: string;
+  colorSoft: string;
+  label: string;
+  unread: boolean;
+  ts: number;
+  time: string;
+}
+
 @Component({
   selector: 'app-messages-dropdown',
   standalone: true,
@@ -16,89 +34,84 @@ export interface MessageClickEvent {
   template: `
     @if (isOpen) {
       <div class="messages-dropdown" [class.dropdown-open]="isOpen">
-        <div class="dropdown-header">
-          <h3>Notificaciones y Mensajes</h3>
-          <button class="close-btn" (click)="closeDropdown()">
+        <!-- Cabecera -->
+        <div class="dd-header">
+          <div class="dd-title">
+            <span class="dd-title-icon material-icons">notifications_active</span>
+            <div>
+              <h3>Bandeja</h3>
+              <small>{{ unreadCount() > 0 ? unreadCount() + ' sin leer' : 'Todo al día' }}</small>
+            </div>
+          </div>
+          <button class="close-btn" aria-label="Cerrar" (click)="closeDropdown()">
             <span class="material-icons">close</span>
           </button>
         </div>
-        @if (hasContent()) {
+
+        <!-- Pestañas -->
+        <div class="dd-tabs" role="tablist">
+          <button role="tab" class="dd-tab" [class.active]="tab === 'all'" (click)="tab = 'all'">
+            Todo <span class="dd-count">{{ totalCount() }}</span>
+          </button>
+          <button role="tab" class="dd-tab" [class.active]="tab === 'unread'" (click)="tab = 'unread'">
+            Sin leer <span class="dd-count" [class.hot]="unreadCount() > 0">{{ unreadCount() }}</span>
+          </button>
+          <button role="tab" class="dd-tab" [class.active]="tab === 'replies'" (click)="tab = 'replies'">
+            Respuestas <span class="dd-count">{{ filteredMessages.length }}</span>
+          </button>
+        </div>
+
+        @if (visibleItems().length > 0) {
           <div class="combined-list">
-            <!-- Notifications -->
-            @for (notification of filteredNotifications; track trackByNotificationId($index, notification)) {
-              <div
-                class="notification-item"
-                [class.unread]="isNotificationNewlyArrived(notification)"
-                [class.deleting]="deletingItems.has(notification.id)"
-                (click)="markAsReadAndClose(notification, 'notification')">
-                <div class="notification-content">
-                  <div class="notification-header">
-                    <div class="sender-info">
-                      <span class="material-icons notifications-icon">notifications</span>
-                      <strong>{{ notification.title }}</strong>
+            @for (group of groupedItems(); track group.label) {
+              <div class="dd-group-label">{{ group.label }}</div>
+              @for (it of group.items; track it.key) {
+                <div
+                  class="dd-item"
+                  [class.unread]="it.unread"
+                  [class.deleting]="deletingItems.has(it.id)"
+                  (click)="markAsReadAndClose(it.raw, it.kind)">
+                  <div class="dd-avatar" [style.background]="it.color">
+                    @if (it.picture) {
+                      <img [src]="it.picture" [alt]="it.sender" />
+                    } @else {
+                      <span class="material-icons">{{ it.icon }}</span>
+                    }
+                  </div>
+                  <div class="dd-body">
+                    <div class="dd-row">
+                      <span class="dd-item-title">{{ it.title }}</span>
+                      <span class="dd-time">{{ it.time }}</span>
                     </div>
-                    <div class="item-time">{{ formatNotificationTime(notification.createdAt) }}</div>
-                  </div>
-                  <div class="notification-text">{{ notification.message }}</div>
-                </div>
-                @if (isNotificationNewlyArrived(notification)) {
-                  <div class="notification-status">
-                    <span class="unread-dot notification-dot"></span>
-                  </div>
-                }
-              </div>
-            }
-            <!-- Messages/Responses -->
-            @for (message of filteredMessages; track trackByMessageId($index, message)) {
-              <div
-                class="message-item"
-                [class.unread]="!message.isRead"
-                [class.deleting]="deletingItems.has(message.id)"
-                (click)="markAsReadAndClose(message, 'message')">
-                <div class="message-content">
-                  <div class="message-header">
-                    <div class="sender-info">
-                      <span class="material-icons message-icon">mail</span>
-                      <strong>{{ message.senderName }} {{ message.senderSurname }}</strong>
-                      <span class="reply-indicator">respondió a:</span>
+                    <div class="dd-sender">
+                      <span class="dd-chip" [style.color]="it.color" [style.background]="it.colorSoft">{{ it.label }}</span>
+                      <span class="dd-from">{{ it.sender }}</span>
                     </div>
-                    <div class="item-time">{{ formatMessageTime(message.createdAt) }}</div>
+                    <div class="dd-text">{{ it.text }}</div>
                   </div>
-                  <div class="original-notification">
-                    <span class="notification-title">"{{ message.originalNotificationTitle }}"</span>
-                  </div>
-                  <div class="message-text">{{ message.replyMessage }}</div>
+                  @if (it.unread) {
+                    <span class="dd-dot" aria-label="Sin leer"></span>
+                  }
                 </div>
-                @if (!message.isRead) {
-                  <div class="message-status">
-                    <span class="unread-dot message-dot"></span>
-                  </div>
-                }
-              </div>
+              }
             }
           </div>
         } @else {
           <div class="empty-state">
-            <span class="material-icons">mail_outline</span>
-            <p>No tienes notificaciones ni mensajes</p>
+            <span class="material-icons">{{ tab === 'unread' ? 'done_all' : 'mark_email_read' }}</span>
+            <p>{{ tab === 'unread' ? '¡Estás al día!' : 'Aquí aparecerán tus avisos' }}</p>
+            <small>{{ tab === 'unread' ? 'No tienes nada pendiente por leer.' : 'Las notificaciones y respuestas llegarán a esta bandeja.' }}</small>
           </div>
         }
+
         @if (hasContent()) {
           <div class="dropdown-footer">
-            <div class="footer-buttons">
-              <button
-                class="mark-all-read-btn"
-                [disabled]="!hasUnreadItems()"
-                [class.disabled]="!hasUnreadItems()"
-                (click)="markAllAsRead()">
-                Marcar todos como leídos
-              </button>
-              <button
-                class="delete-notifications-btn"
-                (click)="deleteAllNotifications()">
-                Eliminar notificaciones
-              </button>
-            </div>
+            <button class="mark-all-read-btn" [disabled]="!hasUnreadItems()" (click)="markAllAsRead()">
+              <span class="material-icons">done_all</span> Marcar todo como leído
+            </button>
+            <button class="delete-notifications-btn" (click)="deleteAllNotifications()">
+              <span class="material-icons">delete_sweep</span> Limpiar
+            </button>
           </div>
         }
       </div>
@@ -107,385 +120,131 @@ export interface MessageClickEvent {
   styles: [`
     .messages-dropdown {
       position: absolute;
-      top: 100%;
+      top: calc(100% + 10px);
       right: 0;
-      width: 400px;
-      min-height: 200px;
-      max-height: min(500px, 70vh);
-      background: var(--surface);
-      border-radius: var(--r-md);
-      box-shadow: var(--shadow-md);
-      border: 1px solid var(--border);
-      z-index: 1000;
-      animation: dropdownSlide 0.2s ease-out;
-      overflow: hidden;
-    }
-
-    .dropdown-open {
-      transform: translateY(0);
-    }
-
-    @keyframes dropdownSlide {
-      from {
-        opacity: 0;
-        transform: translateY(-10px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    .dropdown-header {
-      padding: 20px 20px 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .dropdown-header h3 {
-      margin: 0;
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--text-1);
-    }
-
-    .close-btn {
-      background: none;
-      border: none;
-      padding: 4px;
-      border-radius: 50%;
-      cursor: pointer;
-      color: var(--text-3);
-      transition: all 0.18s ease;
-    }
-
-    .close-btn:hover {
-      background: var(--surface-2);
-      color: var(--text-1);
-    }
-
-    .close-btn:focus-visible {
-      outline: 2px solid var(--brand);
-      outline-offset: 2px;
-    }
-
-    .messages-list {
-      max-height: 350px;
-      overflow-y: auto;
-    }
-
-    .message-item {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-      cursor: pointer;
-      transition: background-color 0.15s ease;
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      position: relative;
-    }
-
-    .message-item:hover {
-      background: var(--surface-2);
-    }
-
-    .message-item.unread {
-      background: var(--brand-50);
-      border-left: 3px solid var(--brand);
-    }
-
-    .message-item.unread:hover {
-      background: var(--brand-100);
-    }
-
-    .message-content {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .message-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 8px;
-    }
-
-    .sender-info {
+      width: 420px;
+      min-height: 220px;
+      max-height: min(600px, 78vh);
       display: flex;
       flex-direction: column;
-      gap: 2px;
-    }
-
-    .sender-info strong {
-      font-size: 14px;
-      color: var(--text-1);
-    }
-
-    .reply-indicator {
-      font-size: 12px;
-      color: var(--text-3);
-      font-weight: normal;
-    }
-
-    .original-notification {
-      margin-bottom: 8px;
-    }
-
-    .notification-title {
-      font-size: 12px;
-      color: var(--text-3);
-      font-style: italic;
-      background: var(--surface-2);
-      padding: 2px 8px;
-      border-radius: var(--r-sm);
+      background: var(--surface);
+      border-radius: 18px;
+      box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22), 0 4px 14px rgba(15, 23, 42, 0.08);
       border: 1px solid var(--border);
-    }
-
-    .message-text {
-      font-size: 13px;
-      color: var(--text-2);
-      line-height: 1.4;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
+      z-index: 1000;
+      animation: dropdownSlide 0.22s cubic-bezier(.2,.8,.2,1);
       overflow: hidden;
-      display: -webkit-box;
-      display: box;
-      line-clamp: 3;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
-      box-orient: vertical;
+    }
+    @keyframes dropdownSlide {
+      from { opacity: 0; transform: translateY(-8px) scale(.98); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
     }
 
-    .message-time {
-      font-size: 11px;
-      color: var(--text-4);
-      white-space: nowrap;
-      margin-top: 2px;
+    /* Cabecera */
+    .dd-header {
+      padding: 18px 20px 14px;
+      display: flex; justify-content: space-between; align-items: center;
+      background: linear-gradient(135deg, var(--brand) 0%, #1d4ed8 100%);
+      color: #fff;
+    }
+    .dd-title { display: flex; align-items: center; gap: 12px; }
+    .dd-title-icon {
+      width: 40px; height: 40px; border-radius: 12px;
+      background: rgba(255,255,255,.18);
+      display: flex; align-items: center; justify-content: center; font-size: 22px;
+    }
+    .dd-title h3 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: .2px; }
+    .dd-title small { opacity: .85; font-size: 12px; }
+    .close-btn {
+      background: rgba(255,255,255,.15); border: none; width: 32px; height: 32px;
+      border-radius: 50%; cursor: pointer; color: #fff; display: flex;
+      align-items: center; justify-content: center; transition: background .18s ease;
+    }
+    .close-btn:hover { background: rgba(255,255,255,.3); }
+    .close-btn .material-icons { font-size: 18px; }
+    .close-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+
+    /* Pestañas */
+    .dd-tabs { display: flex; gap: 6px; padding: 10px 14px; background: var(--surface-2); border-bottom: 1px solid var(--border); }
+    .dd-tab {
+      flex: 1; border: none; background: transparent; padding: 8px 6px; border-radius: 10px;
+      font-size: 12.5px; font-weight: 600; color: var(--text-3); cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 6px; transition: all .18s ease;
+    }
+    .dd-tab:hover { background: var(--surface); color: var(--text-1); }
+    .dd-tab.active { background: var(--surface); color: var(--brand); box-shadow: 0 1px 4px rgba(15,23,42,.1); }
+    .dd-count { background: var(--border); color: var(--text-2); font-size: 11px; padding: 1px 7px; border-radius: 999px; }
+    .dd-count.hot { background: #ef4444; color: #fff; }
+
+    /* Lista */
+    .combined-list { flex: 1; overflow-y: auto; padding: 4px 0 8px; }
+    .dd-group-label {
+      padding: 12px 20px 6px; font-size: 11px; font-weight: 700; letter-spacing: .8px;
+      text-transform: uppercase; color: var(--text-4);
+    }
+    .dd-item {
+      position: relative; display: flex; gap: 12px; align-items: flex-start;
+      padding: 12px 20px; cursor: pointer; transition: background .15s ease, opacity .3s ease, transform .3s ease;
+    }
+    .dd-item:hover { background: var(--surface-2); }
+    .dd-item.unread { background: color-mix(in srgb, var(--brand) 6%, transparent); }
+    .dd-item.unread:hover { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+    .dd-item.deleting { opacity: 0; transform: translateX(40px); }
+
+    .dd-avatar {
+      width: 42px; height: 42px; border-radius: 14px; flex-shrink: 0; overflow: hidden;
+      display: flex; align-items: center; justify-content: center; color: #fff;
+      box-shadow: 0 3px 8px rgba(15,23,42,.15);
+    }
+    .dd-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .dd-avatar .material-icons { font-size: 22px; }
+
+    .dd-body { flex: 1; min-width: 0; }
+    .dd-row { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+    .dd-item-title {
+      font-size: 14px; font-weight: 600; color: var(--text-1);
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .dd-item.unread .dd-item-title { font-weight: 700; }
+    .dd-time { font-size: 11px; color: var(--text-4); white-space: nowrap; }
+    .dd-sender { display: flex; align-items: center; gap: 8px; margin: 3px 0 4px; min-width: 0; }
+    .dd-chip { font-size: 10.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+    .dd-from { font-size: 12px; color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dd-text {
+      font-size: 13px; color: var(--text-2); line-height: 1.45; word-break: break-word;
+      display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    }
+    .dd-dot {
+      position: absolute; top: 16px; right: 8px; width: 8px; height: 8px; border-radius: 50%;
+      background: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 22%, transparent);
     }
 
-    .message-status {
-      flex-shrink: 0;
-      padding-top: 2px;
-    }
+    /* Vacío */
+    .empty-state { padding: 46px 24px; text-align: center; color: var(--text-3); }
+    .empty-state .material-icons { font-size: 56px; margin-bottom: 10px; color: var(--brand); opacity: .35; }
+    .empty-state p { margin: 0 0 4px; font-size: 15px; font-weight: 600; color: var(--text-2); }
+    .empty-state small { font-size: 12.5px; }
 
-    .unread-dot {
-      width: 8px;
-      height: 8px;
-      background: var(--brand);
-      border-radius: 50%;
+    /* Pie */
+    .dropdown-footer { padding: 10px 14px; border-top: 1px solid var(--border); background: var(--surface-2); display: flex; gap: 8px; }
+    .mark-all-read-btn, .delete-notifications-btn {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 9px 12px; border: none; border-radius: 10px; font-size: 12.5px; font-weight: 600; cursor: pointer;
+      transition: all .18s ease;
     }
+    .mark-all-read-btn { flex: 1; background: var(--brand); color: #fff; }
+    .mark-all-read-btn:hover:not(:disabled) { filter: brightness(1.08); }
+    .mark-all-read-btn:disabled { background: var(--border-strong); color: var(--text-3); cursor: not-allowed; opacity: .7; }
+    .delete-notifications-btn { background: transparent; color: var(--text-2); border: 1px solid var(--border-strong); }
+    .delete-notifications-btn:hover { background: #fee2e2; color: #b91c1c; border-color: #fecaca; }
+    .mark-all-read-btn .material-icons, .delete-notifications-btn .material-icons { font-size: 17px; }
 
-    .empty-state {
-      padding: 40px 20px;
-      text-align: center;
-      color: var(--text-3);
-    }
-
-    .empty-state .material-icons {
-      font-size: 48px;
-      margin-bottom: 12px;
-      opacity: 0.5;
-    }
-
-    .empty-state p {
-      margin: 0;
-      font-size: 14px;
-    }
-
-    .dropdown-footer {
-      padding: 12px 20px;
-      border-top: 1px solid var(--border);
-      background: var(--surface-2);
-    }
-
-    .footer-buttons {
-      display: flex;
-      gap: 8px;
-    }
-
-    .mark-all-read-btn {
-      flex: 1;
-      padding: 8px 12px;
-      background: var(--brand);
-      color: white;
-      border: none;
-      border-radius: var(--r-sm);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background-color 0.18s ease;
-    }
-
-    .delete-notifications-btn {
-      flex: 1;
-      padding: 8px 12px;
-      background: var(--danger);
-      color: white;
-      border: none;
-      border-radius: var(--r-sm);
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background-color 0.18s ease;
-    }
-
-    .delete-notifications-btn:hover {
-      background: #b91c1c;
-    }
-
-    .notification-item.deleting,
-    .message-item.deleting {
-      animation: slideOutLeft 0.5s ease-in-out forwards;
-    }
-
-    @keyframes slideOutLeft {
-      to {
-        transform: translateX(-100%);
-        opacity: 0;
-      }
-    }
-
-    .mark-all-read-btn:hover {
-      background: var(--brand-600);
-    }
-
-    .mark-all-read-btn:disabled,
-    .mark-all-read-btn.disabled {
-      background: var(--border-strong);
-      color: var(--text-3);
-      cursor: not-allowed;
-      opacity: 0.6;
-    }
-
-    .mark-all-read-btn:disabled:hover,
-    .mark-all-read-btn.disabled:hover {
-      background: var(--border-strong);
-      color: var(--text-3);
-    }
-
-    .combined-list {
-      max-height: 350px;
-      overflow-y: auto;
-    }
-
-    .notification-item {
-      padding: 16px 20px;
-      border-bottom: 1px solid var(--border);
-      cursor: pointer;
-      transition: background-color 0.15s ease;
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      position: relative;
-    }
-
-    .notification-item:hover {
-      background: var(--surface-2);
-    }
-
-    .notification-item.unread {
-      background: var(--success-bg);
-      border-left: 3px solid var(--success);
-    }
-
-    .notification-item.unread:hover {
-      background: #d1fae5;
-    }
-
-    .notification-content {
-      flex: 1;
-      min-width: 0;
-    }
-
-    .notification-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 8px;
-    }
-
-    .sender-info {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-
-    .sender-info strong {
-      font-size: 14px;
-      color: var(--text-1);
-    }
-
-    .notifications-icon {
-      font-size: 18px;
-      color: var(--success);
-    }
-
-    .message-icon {
-      font-size: 18px;
-      color: var(--brand);
-    }
-
-    .notification-text {
-      font-size: 13px;
-      color: var(--text-2);
-      line-height: 1.4;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      overflow: hidden;
-      display: -webkit-box;
-      display: box;
-      line-clamp: 2;
-      -webkit-line-clamp: 2;
-      -webkit-box-orient: vertical;
-      box-orient: vertical;
-    }
-
-    .item-time {
-      font-size: 11px;
-      color: var(--text-4);
-      white-space: nowrap;
-      margin-top: 2px;
-    }
-
-    .notification-status {
-      flex-shrink: 0;
-      padding-top: 2px;
-    }
-
-    .notification-dot {
-      background: var(--success);
-    }
-
-    .message-dot {
-      background: var(--brand);
-    }
-
-    /* Scrollbar styling */
-    .combined-list::-webkit-scrollbar {
-      width: 6px;
-    }
-
-    .combined-list::-webkit-scrollbar-track {
-      background: transparent;
-    }
-
-    .combined-list::-webkit-scrollbar-thumb {
-      background: var(--border-strong);
-      border-radius: 3px;
-    }
-
-    .combined-list::-webkit-scrollbar-thumb:hover {
-      background: var(--text-4);
-    }
+    .combined-list::-webkit-scrollbar { width: 6px; }
+    .combined-list::-webkit-scrollbar-track { background: transparent; }
+    .combined-list::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 3px; }
 
     @media (max-width: 480px) {
-      .messages-dropdown {
-        width: calc(100vw - 24px);
-        max-width: none;
-        right: 12px;
-      }
+      .messages-dropdown { width: calc(100vw - 24px); max-width: none; right: 12px; position: fixed; top: 64px; }
     }
   `]
 })
@@ -496,6 +255,7 @@ export class MessagesDropdownComponent implements OnInit {
   @Output() close = new EventEmitter<void>();
   @Output() messageClick = new EventEmitter<MessageClickEvent>();
 
+  tab: 'all' | 'unread' | 'replies' = 'all';
   deletingItems = new Set<number>();
   deletedItems = new Set<number>();
 
@@ -603,6 +363,87 @@ export class MessagesDropdownComponent implements OnInit {
     };
 
     removeNext();
+  }
+
+
+  // ───────── Vista unificada (notificaciones + respuestas) ─────────
+  private typeStyle(type: string): { icon: string; color: string; label: string } {
+    switch (type) {
+      case 'ADMIN_MESSAGE':       return { icon: 'campaign',        color: '#2563eb', label: 'Administración' };
+      case 'REPORT_CARD_SENT':    return { icon: 'assignment',      color: '#f59e0b', label: 'Boletín' };
+      case 'REPORT_CARD_SIGNED':  return { icon: 'verified',        color: '#16a34a', label: 'Firmado' };
+      default:                    return { icon: 'notifications',   color: '#6366f1', label: 'Aviso' };
+    }
+  }
+
+  private soft(hex: string): string {
+    // Fondo suave del chip a partir del color principal.
+    return `color-mix(in srgb, ${hex} 14%, transparent)`;
+  }
+
+  private toTime(iso: string): number {
+    const t = new Date(iso).getTime();
+    return isNaN(t) ? 0 : t;
+  }
+
+  private buildItems(): DropdownItem[] {
+    const items: DropdownItem[] = [];
+
+    for (const n of this.filteredNotifications) {
+      const st = this.typeStyle(n.notificationType);
+      const sender = n.user ? `${n.user.name || ''} ${n.user.surname || ''}`.trim() : '';
+      items.push({
+        key: 'n' + n.id, id: n.id, kind: 'notification', raw: n,
+        title: n.title, text: n.message, sender: sender || 'Sistema',
+        picture: n.user?.profilePicture || '', icon: st.icon, color: st.color, colorSoft: this.soft(st.color),
+        label: st.label, unread: this.isNotificationNewlyArrived(n) || !n.isRead,
+        ts: this.toTime(n.createdAt), time: this.formatNotificationTime(n.createdAt)
+      });
+    }
+
+    for (const m of this.filteredMessages) {
+      const color = '#0ea5e9';
+      items.push({
+        key: 'm' + m.id, id: m.id, kind: 'message', raw: m,
+        title: `Respuesta a "${m.originalNotificationTitle}"`, text: m.replyMessage,
+        sender: `${m.senderName || ''} ${m.senderSurname || ''}`.trim(),
+        picture: '', icon: 'reply', color, colorSoft: this.soft(color),
+        label: 'Respuesta', unread: !m.isRead,
+        ts: this.toTime(m.createdAt), time: this.formatMessageTime(m.createdAt)
+      });
+    }
+
+    return items.sort((a, b) => b.ts - a.ts);
+  }
+
+  visibleItems(): DropdownItem[] {
+    const all = this.buildItems();
+    if (this.tab === 'unread') return all.filter(i => i.unread);
+    if (this.tab === 'replies') return all.filter(i => i.kind === 'message');
+    return all;
+  }
+
+  groupedItems(): { label: string; items: DropdownItem[] }[] {
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const today = start.getTime();
+    const yesterday = today - 86400000;
+    const groups: { label: string; items: DropdownItem[] }[] = [
+      { label: 'Hoy', items: [] }, { label: 'Ayer', items: [] }, { label: 'Anteriores', items: [] }
+    ];
+    for (const it of this.visibleItems()) {
+      if (it.ts >= today) groups[0].items.push(it);
+      else if (it.ts >= yesterday) groups[1].items.push(it);
+      else groups[2].items.push(it);
+    }
+    return groups.filter(g => g.items.length > 0);
+  }
+
+  unreadCount(): number {
+    return this.buildItems().filter(i => i.unread).length;
+  }
+
+  totalCount(): number {
+    return this.filteredNotifications.length + this.filteredMessages.length;
   }
 
   hasContent(): boolean {

@@ -20,6 +20,8 @@ export interface NotificationReply {
 export class NotificationDetailsComponent {
   @Input() notification: Notification | null = null;
   @Input() isOpen = false;
+  /** true cuando se abre una RESPUESTA recibida: solo se lee (sin responder ni marcar). */
+  @Input() readOnly = false;
   @Output() close = new EventEmitter<void>();
   @Output() reply = new EventEmitter<NotificationReply>();
 
@@ -98,6 +100,8 @@ export class NotificationDetailsComponent {
         return 'assignment';
       case 'REPORT_CARD_SIGNED':
         return 'verified';
+      case 'REPLY':
+        return 'reply';
       default:
         return 'notifications';
     }
@@ -111,6 +115,8 @@ export class NotificationDetailsComponent {
         return '#FF9800';
       case 'REPORT_CARD_SIGNED':
         return '#4CAF50';
+      case 'REPLY':
+        return '#0ea5e9';
       default:
         return '#757575';
     }

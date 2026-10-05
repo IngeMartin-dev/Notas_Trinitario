@@ -9,6 +9,15 @@ import { GradesUpdateService } from '../services/grades-update.service';
 import { DialogService } from '../services/dialog.service';
 
 import { API_BASE_URL } from '../config/api-base';
+interface QuickLink {
+  icon: string;
+  label: string;
+  desc: string;
+  color: string;
+  route?: string;
+  action?: 'addStudent' | 'sendNotification' | 'countdown';
+}
+
 interface Activity {
   icon: string;
   description: string;
@@ -934,6 +943,123 @@ export class Dashboard implements OnInit {
   }
 
 
+
+
+  // ========== ROLES Y ACCESOS RÁPIDOS ==========
+
+  private roleName(): string {
+    const user = this.currentUser();
+    return ((user?.role?.name || user?.role || '') as string).toString().toUpperCase();
+  }
+
+  isParent(): boolean { return this.roleName() === 'PARENT'; }
+  isDirector(): boolean { return this.roleName() === 'DIRECTOR_DE_GRUPO'; }
+  isTeacherRole(): boolean { return this.roleName() === 'TEACHER' || this.isDirector(); }
+
+  /** Texto de bienvenida corto según el rol (rellena el panel para que no se vea vacío). */
+  getRoleTip(): { icon: string; title: string; text: string } {
+    if (this.isAdmin()) {
+      return { icon: 'admin_panel_settings', title: 'Panel de administración',
+        text: 'Gestiona estudiantes, profesores, períodos, boletines y consolidados desde los accesos de abajo.' };
+    }
+    if (this.isTeacherRole()) {
+      return { icon: 'edit_note', title: 'Tu espacio docente',
+        text: 'Registra calificaciones, gestiona recuperaciones y comunícate con los padres de familia.' };
+    }
+    if (this.isParent()) {
+      return { icon: 'family_restroom', title: 'Seguimiento académico',
+        text: 'Consulta las notas y los boletines de tus hijos y escribe a sus profesores cuando lo necesites.' };
+    }
+    return { icon: 'waving_hand', title: 'Bienvenido', text: 'Usa los accesos para moverte por la plataforma.' };
+  }
+
+  /**
+   * Accesos del panel, filtrados por rol: cada rol solo ve lo que realmente puede usar.
+   * `route` navega a una pantalla; `action` abre un modal del propio panel.
+   */
+  getQuickLinks(): QuickLink[] {
+    if (this.isAdmin()) {
+      return [
+        { icon: 'person_add',      label: 'Agregar estudiante',  desc: 'Registro rápido',            action: 'addStudent',        color: '#2563eb' },
+        { icon: 'campaign',        label: 'Enviar información',  desc: 'Avisos a la comunidad',      action: 'sendNotification',  color: '#0ea5e9' },
+        { icon: 'schedule',        label: 'Cronómetro',          desc: 'Cuenta regresiva',           action: 'countdown',         color: '#8b5cf6' },
+        { icon: 'school',          label: 'Estudiantes',         desc: 'Listado y matrícula',        route: '/students',           color: '#2563eb' },
+        { icon: 'groups',          label: 'Profesores',          desc: 'Cuentas y materias',         route: '/teachers',           color: '#0d9488' },
+        { icon: 'family_restroom', label: 'Padres de familia',   desc: 'Cuentas y vínculos',         route: '/parents',            color: '#f59e0b' },
+        { icon: 'menu_book',       label: 'Materias',            desc: 'Áreas y asignaturas',        route: '/subjects',           color: '#6366f1' },
+        { icon: 'event',           label: 'Períodos',            desc: 'Abrir y cerrar períodos',    route: '/periods',            color: '#ec4899' },
+        { icon: 'assignment',      label: 'Generar boletines',   desc: 'Por grado y salón',          route: '/boletines',          color: '#16a34a' },
+        { icon: 'folder_open',     label: 'Boletines generados', desc: 'Consulta y descarga',        route: '/boletines-generados', color: '#15803d' },
+        { icon: 'assessment',      label: 'Consolidados',        desc: 'Resumen por salón',          route: '/consolidados-generados', color: '#ea580c' },
+        { icon: 'workspace_premium', label: 'Promociones',       desc: 'Egresados Grado 11º',        route: '/promociones',        color: '#a16207' },
+        { icon: 'supervisor_account', label: 'Directores de grupo', desc: 'Asignación por salón',    route: '/directors-group',    color: '#7c3aed' },
+        { icon: 'event_repeat',    label: 'Año escolar',         desc: 'Cierre y adelantar año',     route: '/school-year-config', color: '#dc2626' },
+        { icon: 'chat',            label: 'Mensajes',            desc: 'Chats con la comunidad',     route: '/chats',              color: '#0284c7' },
+        { icon: 'settings',        label: 'Ajustes',             desc: 'Perfil y seguridad',         route: '/settings',           color: '#64748b' },
+      ];
+    }
+    if (this.isTeacherRole()) {
+      const links: QuickLink[] = [
+        { icon: 'grade',           label: 'Calificaciones',      desc: 'Registrar y editar notas',   route: '/grades',             color: '#2563eb' },
+        { icon: 'published_with_changes', label: 'Recuperaciones', desc: 'Planes y notas de recuperación', route: '/recoveries',   color: '#16a34a' },
+      ];
+      if (this.isDirector()) {
+        links.push(
+          { icon: 'assessment',  label: 'Consolidado',         desc: 'Resumen de tu salón',        route: '/reports',            color: '#ea580c' },
+          { icon: 'folder_open', label: 'Consolidados generados', desc: 'Consulta y descarga',     route: '/consolidados-generados', color: '#15803d' },
+        );
+      }
+      links.push(
+        { icon: 'chat',          label: 'Mensajes',            desc: 'Habla con padres y colegas', route: '/chats',              color: '#0284c7' },
+        { icon: 'settings',      label: 'Ajustes',             desc: 'Perfil y seguridad',         route: '/settings',           color: '#64748b' },
+      );
+      return links;
+    }
+    if (this.isParent()) {
+      return [
+        { icon: 'grade',           label: 'Mis notas',           desc: 'Calificaciones de tus hijos', route: '/mis-notas',         color: '#2563eb' },
+        { icon: 'assignment',      label: 'Mis boletines',       desc: 'Descarga y consulta',         route: '/mis-boletines',     color: '#16a34a' },
+        { icon: 'bar_chart',       label: 'Ver reportes',        desc: 'Resumen por período',         route: '/mis-boletines',     color: '#ea580c' },
+        { icon: 'chat',            label: 'Mensajes',            desc: 'Escribe a los profesores',    route: '/chats',             color: '#0284c7' },
+        { icon: 'settings',        label: 'Mi perfil',           desc: 'Datos y seguridad',           route: '/settings',          color: '#64748b' },
+      ];
+    }
+    return [
+      { icon: 'chat',     label: 'Mensajes', desc: 'Chats',            route: '/chats',    color: '#0284c7' },
+      { icon: 'settings', label: 'Ajustes',  desc: 'Perfil y seguridad', route: '/settings', color: '#64748b' },
+    ];
+  }
+
+  onQuickLink(link: QuickLink) {
+    if (link.route) {
+      this.router.navigate([link.route]);
+      return;
+    }
+    switch (link.action) {
+      case 'addStudent':       this.openAddStudentModal(); break;
+      case 'sendNotification': this.openSendNotificationModal(); break;
+      case 'countdown':        this.openCountdownConfig(); break;
+    }
+  }
+
+  /** Escala valorativa (la misma que usan los boletines) — se muestra a los padres. */
+  readonly escalaValorativa = [
+    { letra: 'E', nombre: 'Excelente', rango: '4.6 – 5.0', color: '#16a34a' },
+    { letra: 'S', nombre: 'Sobresaliente', rango: '4.0 – 4.5', color: '#2563eb' },
+    { letra: 'B', nombre: 'Bueno', rango: '3.5 – 3.9', color: '#f59e0b' },
+    { letra: 'A', nombre: 'Aceptable', rango: '3.0 – 3.4', color: '#ea580c' },
+    { letra: 'I', nombre: 'Insuficiente', rango: '1.0 – 2.9', color: '#dc2626' },
+  ];
+
+  /** Iniciales del remitente para la vista previa (usa el mismo cálculo del perfil). */
+  getPreviewRecipientLabel(): string {
+    switch (this.newNotification.recipientType) {
+      case 'PARENTS': return 'Padres de familia';
+      case 'TEACHERS': return 'Profesores';
+      case 'ADMINISTRATORS': return 'Administradores';
+      default: return 'Toda la comunidad';
+    }
+  }
 
   // ========== ADMIN METHODS ==========
 

@@ -320,6 +320,7 @@
     <app-notification-details
       [notification]="selectedNotification"
       [isOpen]="showNotificationDetailsModal()"
+      [readOnly]="notificationDetailsReadOnly()"
       (close)="closeNotificationDetailsModal()"
       (reply)="handleNotificationReply($event)"
     >

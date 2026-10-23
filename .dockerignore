@@ -1,0 +1,16 @@
+.git
+.kilo
+.mvn
+target
+Frontend
+node_modules
+__pycache__
+Boletines Generados
+Consolidados Generados
+uploads
+z_sql
+zsql.sql
+Prueba_Masiva.ps1
+*.zip
+.env
+*.env

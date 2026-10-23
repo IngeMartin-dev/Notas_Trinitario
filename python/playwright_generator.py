@@ -103,7 +103,7 @@ def render_simple(html_path, out_path):
     tmp_dir = os.path.dirname(os.path.abspath(out_path)) or "."
     tmp_path = os.path.join(tmp_dir, "_render_orig.pdf")
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"])
         page = browser.new_page()
         page.goto("file:///" + html_path.replace("\\", "/"))
         page.pdf(path=tmp_path, width=f"{ORIG_WIDTH_IN}in", height=f"{ORIG_HEIGHT_IN}in", print_background=True)
@@ -141,7 +141,7 @@ def render_consolidado(html_path, out_path):
     la plantilla Consolidado Base/ConsolidadoBase.html para el grupo de
     32 estudiantes por hoja."""
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"])
         page = browser.new_page()
         page.goto("file:///" + html_path.replace("\\", "/"))
         page.pdf(
@@ -216,7 +216,7 @@ def try_split_and_merge(html_text, out_path):
     part_paths = []
 
     with sync_playwright() as p:
-        browser = p.chromium.launch()
+        browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"])
 
         # Pagina 1 (tamano fijo, sin cambios).
         p1_path = os.path.join(tmp_dir, "_part_p1.pdf")

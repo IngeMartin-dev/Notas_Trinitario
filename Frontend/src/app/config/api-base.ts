@@ -10,11 +10,24 @@
  */
 const LOCALHOST_API = 'http://localhost:8080';
 
+/**
+ * URL pública del backend en producción (Render). Debe coincidir con la URL
+ * real del servicio; si Render te asigna otro nombre, cámbiala aquí.
+ * Se usa cuando la app se abre desde un dominio (p. ej. *.pages.dev).
+ */
+const PRODUCTION_API_URL = 'https://notas-trinitario-api.onrender.com';
+
+const ES_IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/;
+
 function calcularApiBase(): string {
   if (typeof window === 'undefined') return LOCALHOST_API;
   const { hostname, protocol } = window.location;
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return LOCALHOST_API;
+  }
+  // Dominio real (Cloudflare Pages u otro) → backend de producción.
+  if (PRODUCTION_API_URL && !ES_IPV4.test(hostname)) {
+    return PRODUCTION_API_URL;
   }
   return `${protocol}//${hostname}:8080`;
 }

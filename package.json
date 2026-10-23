@@ -4,6 +4,6 @@
   "private": true,
   "description": "Raiz del repo: solo orquesta el build del frontend para Cloudflare.",
   "scripts": {
-    "build": "cd Frontend && npm ci && npm run build"
+    "build": "cd Frontend && npm ci && npm run build && rm -rf dist/cloudflare && cp -r dist/Frontend/browser dist/cloudflare"
   }
 }
